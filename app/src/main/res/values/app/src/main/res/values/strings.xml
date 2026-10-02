@@ -24,20 +24,17 @@
 
     <string name="accessibility_description">Allows USSD Runner to read USSD dialogs and enter replies automatically.</string>
 
-    <!-- Bottom navigation -->
     <string name="nav_runner">Runner</string>
     <string name="nav_inbox">Inbox</string>
     <string name="nav_products">Products</string>
     <string name="nav_settings">Settings</string>
 
-    <!-- Inbox -->
     <string name="inbox_title">M‑PESA INBOX</string>
     <string name="inbox_total_today">Received today</string>
     <string name="inbox_count">Transactions</string>
     <string name="inbox_empty">No M‑Pesa transactions captured yet.\nSend yourself a test SMS or wait for the next payment.</string>
     <string name="inbox_clear">Clear inbox</string>
 
-    <!-- Products -->
     <string name="products_title">PRODUCTS</string>
     <string name="products_add">Add product</string>
     <string name="products_empty">No products yet.\nTap “Add product” to map a price to a USSD flow.</string>
@@ -51,7 +48,6 @@
     <string name="products_field_message_help">Sent to the customer after the flow completes. Same placeholders allowed.</string>
     <string name="products_field_enabled">Enabled</string>
 
-    <!-- Settings -->
     <string name="settings_title">SETTINGS</string>
     <string name="settings_system_sim">SIM for USSD / SMS</string>
     <string name="settings_mpesa_sim">SIM that receives M‑Pesa</string>
