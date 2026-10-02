@@ -12,7 +12,6 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- ================= HEADER ================= -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -56,11 +55,15 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- ================= SIM ================= -->
         <TextView
-            style="@style/SectionLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_marginTop="22dp"
-            android:text="@string/section_sim" />
+            android:letterSpacing="0.12"
+            android:text="@string/section_sim"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:textStyle="bold" />
 
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
@@ -77,10 +80,6 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="14dp"
                 android:hint="@string/hint_sim"
-                app:boxCornerRadiusBottomEnd="14dp"
-                app:boxCornerRadiusBottomStart="14dp"
-                app:boxCornerRadiusTopEnd="14dp"
-                app:boxCornerRadiusTopStart="14dp"
                 app:startIconDrawable="@drawable/ic_sim">
 
                 <AutoCompleteTextView
@@ -92,11 +91,15 @@
             </com.google.android.material.textfield.TextInputLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- ================= USSD ================= -->
         <TextView
-            style="@style/SectionLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_marginTop="18dp"
-            android:text="@string/section_ussd" />
+            android:letterSpacing="0.12"
+            android:text="@string/section_ussd"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:textStyle="bold" />
 
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
@@ -113,10 +116,6 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="14dp"
                 android:hint="@string/hint_ussd"
-                app:boxCornerRadiusBottomEnd="14dp"
-                app:boxCornerRadiusBottomStart="14dp"
-                app:boxCornerRadiusTopEnd="14dp"
-                app:boxCornerRadiusTopStart="14dp"
                 app:helperText="@string/helper_ussd"
                 app:startIconDrawable="@drawable/ic_dial">
 
@@ -129,11 +128,15 @@
             </com.google.android.material.textfield.TextInputLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- ================= STEPS ================= -->
         <TextView
-            style="@style/SectionLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_marginTop="18dp"
-            android:text="@string/section_steps" />
+            android:letterSpacing="0.12"
+            android:text="@string/section_steps"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:textStyle="bold" />
 
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
@@ -150,10 +153,6 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="14dp"
                 android:hint="@string/hint_steps"
-                app:boxCornerRadiusBottomEnd="14dp"
-                app:boxCornerRadiusBottomStart="14dp"
-                app:boxCornerRadiusTopEnd="14dp"
-                app:boxCornerRadiusTopStart="14dp"
                 app:helperText="@string/helper_steps"
                 app:startIconDrawable="@drawable/ic_steps">
 
@@ -166,7 +165,6 @@
             </com.google.android.material.textfield.TextInputLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- ================= NOTICE ================= -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -216,7 +214,6 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- ================= START ================= -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnStart"
             android:layout_width="match_parent"
