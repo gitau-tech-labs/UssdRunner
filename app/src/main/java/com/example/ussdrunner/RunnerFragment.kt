@@ -4,8 +4,6 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.telephony.SubscriptionInfo
@@ -68,8 +66,11 @@ class RunnerFragment : Fragment() {
         val ctx = context ?: return
         if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_PHONE_STATE)
             != PackageManager.PERMISSION_GRANTED) {
-            actSim.setText("Grant phone permission", false); actSim.isEnabled = false; return
+            actSim.setText("Grant phone permission", false)
+            actSim.isEnabled = false
+            return
         }
+
         val sm = ctx.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as SubscriptionManager
         subs = try { sm.activeSubscriptionInfoList ?: emptyList() }
                catch (_: SecurityException) { emptyList() }
@@ -79,10 +80,14 @@ class RunnerFragment : Fragment() {
             val name = s.displayName?.toString()?.takeIf { it.isNotBlank() } ?: "SIM $slot"
             "$name  ·  SIM $slot"
         }
+
         if (labels.isEmpty()) {
-            actSim.setText("No SIM detected", false); actSim.isEnabled = false
-            selectedSubId = SubscriptionManager.INVALID_SUBSCRIPTION_ID; return
+            actSim.setText("No SIM detected", false)
+            actSim.isEnabled = false
+            selectedSubId = SubscriptionManager.INVALID_SUBSCRIPTION_ID
+            return
         }
+
         actSim.isEnabled = true
         actSim.setAdapter(ArrayAdapter(ctx, android.R.layout.simple_list_item_1, labels))
 
@@ -124,11 +129,18 @@ class RunnerFragment : Fragment() {
         val init = etUssdInit.text?.toString()?.trim().orEmpty()
         val stepsRaw = etSteps.text?.toString()?.trim().orEmpty()
 
-        if (init.isEmpty()) { etUssdInit.error = "Enter the USSD initializer"; return }
-        if (selectedSubId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
-            Toast.makeText(context, "Select a SIM first", Toast.LENGTH_SHORT).show(); return
+        if (init.isEmpty()) {
+            etUssdInit.error = "Enter the USSD initializer"
+            return
         }
-        if (!isAccessibilityEnabled()) { showAccessibilityDialog(); return }
+        if (selectedSubId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            Toast.makeText(context, "Select a SIM first", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!isAccessibilityEnabled()) {
+            showAccessibilityDialog()
+            return
+        }
 
         AppPrefs.setInitializer(requireContext(), init)
         AppPrefs.setUssdSubId(requireContext(), selectedSubId)
@@ -140,20 +152,6 @@ class RunnerFragment : Fragment() {
         UssdLog.append("📤 Opening dialer: $init")
         if (steps.isNotEmpty()) UssdLog.append("⌨️ Queued: ${steps.joinToString(" → ")}")
 
-        dialUssd(init, selectedSubId)
-    }
-
-    private fun dialUssd(code: String, subId: Int) {
-        val encoded = code.replace("#", "%23").replace("*", "%2A")
-        val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$encoded")).apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                putExtra("com.android.phone.extra.slot", subId)
-                putExtra("simSlot", subId)
-                putExtra("subscription", subId)
-            }
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        try { startActivity(intent) }
-        catch (e: Exception) { UssdLog.append("❌ Dialer error: ${e.message}") }
+        SimDialer.dialUssd(requireContext(), init, selectedSubId)
     }
 }
