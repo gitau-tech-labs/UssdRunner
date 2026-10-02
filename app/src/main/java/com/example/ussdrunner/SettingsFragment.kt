@@ -25,6 +25,8 @@ class SettingsFragment : Fragment() {
     private lateinit var actSys: AutoCompleteTextView
     private lateinit var actMpesa: AutoCompleteTextView
     private lateinit var etInitializer: TextInputEditText
+    private lateinit var etSuccessMessage: TextInputEditText
+    private lateinit var etFailedMessage: TextInputEditText
     private lateinit var switchAuto: MaterialSwitch
     private lateinit var switchSms: MaterialSwitch
 
@@ -36,17 +38,23 @@ class SettingsFragment : Fragment() {
     ): View = inflater.inflate(R.layout.fragment_settings, container, false)
 
     override fun onViewCreated(v: View, b: Bundle?) {
-        actSys         = v.findViewById(R.id.actSysSim)
-        actMpesa       = v.findViewById(R.id.actMpesaSim)
-        etInitializer  = v.findViewById(R.id.etInitializer)
-        switchAuto     = v.findViewById(R.id.switchAuto)
-        switchSms      = v.findViewById(R.id.switchSendSms)
+        actSys           = v.findViewById(R.id.actSysSim)
+        actMpesa         = v.findViewById(R.id.actMpesaSim)
+        etInitializer    = v.findViewById(R.id.etInitializer)
+        etSuccessMessage = v.findViewById(R.id.etSuccessMessage)
+        etFailedMessage  = v.findViewById(R.id.etFailedMessage)
+        switchAuto       = v.findViewById(R.id.switchAuto)
+        switchSms        = v.findViewById(R.id.switchSendSms)
 
         v.findViewById<MaterialButton>(R.id.btnSaveSettings)
             .setOnClickListener { save() }
+        v.findViewById<MaterialButton>(R.id.btnResetMessages)
+            .setOnClickListener { resetMessages() }
 
         val ctx = requireContext()
         etInitializer.setText(AppPrefs.getInitializer(ctx))
+        etSuccessMessage.setText(AppPrefs.getSuccessMessage(ctx))
+        etFailedMessage.setText(AppPrefs.getFailedMessage(ctx))
         switchAuto.isChecked = AppPrefs.isAutoTrigger(ctx)
         switchSms.isChecked  = AppPrefs.isSendSuccessSms(ctx)
 
@@ -97,8 +105,18 @@ class SettingsFragment : Fragment() {
         AppPrefs.setSystemSubId(ctx, sysSubId)
         AppPrefs.setMpesaSubId(ctx, mpesaSubId)
         AppPrefs.setInitializer(ctx, etInitializer.text?.toString()?.trim().orEmpty())
+        AppPrefs.setSuccessMessage(ctx, etSuccessMessage.text?.toString()?.trim().orEmpty())
+        AppPrefs.setFailedMessage(ctx, etFailedMessage.text?.toString()?.trim().orEmpty())
         AppPrefs.setAutoTrigger(ctx, switchAuto.isChecked)
         AppPrefs.setSendSuccessSms(ctx, switchSms.isChecked)
         Toast.makeText(ctx, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
+    }
+
+    private fun resetMessages() {
+        val ctx = requireContext()
+        AppPrefs.resetMessages(ctx)
+        etSuccessMessage.setText(AppPrefs.getSuccessMessage(ctx))
+        etFailedMessage.setText(AppPrefs.getFailedMessage(ctx))
+        Toast.makeText(ctx, "Messages reset to default", Toast.LENGTH_SHORT).show()
     }
 }
