@@ -6,12 +6,14 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * Fires every USSD step the instant a new menu appears.
+ * Watches for USSD dialogs and feeds steps instantly.
  *
- *  - ONE tree traversal per event (menu text + input node + send node found together).
- *  - No debouncing, no artificial delay.
- *  - Menu signature excludes the editable field, so typing a step
- *    never counts as a new menu — only real network prompts do.
+ *  - Single-pass tree analysis per event (menu text + input + send found together)
+ *  - No delays, no debouncing, no throttling (notificationTimeout=0 in config)
+ *  - Menu signature excludes the editable field, so typing a step never
+ *    counts as a new menu — only real network prompts advance the flow
+ *  - Auto-resets the signature the moment a new session starts, so a session
+ *    that begins right after the last one still fires step 1 immediately
  */
 class UssdAccessibilityService : AccessibilityService() {
 
@@ -37,11 +39,22 @@ class UssdAccessibilityService : AccessibilityService() {
     }
 
     private var lastMenuSignature: String = ""
+    private var wasActive: Boolean = false
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
-        if (!UssdStepStore.active) return
 
+        // -------- Auto-reset when a new session starts --------
+        val nowActive = UssdStepStore.active
+        if (nowActive && !wasActive) {
+            lastMenuSignature = ""
+            UssdLog.append("🔧 Accessibility reset — ready to feed steps")
+        }
+        wasActive = nowActive
+
+        if (!nowActive) return
+
+        // -------- Accept only meaningful event types --------
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
@@ -52,11 +65,11 @@ class UssdAccessibilityService : AccessibilityService() {
 
         val root = rootInActiveWindow ?: return
 
-        // Single-pass analysis: menu text + input node + send node.
+        // Single traversal: menu text + input node + send node.
         val a = analyze(root) ?: return
         if (a.menu.isEmpty() || a.menu == lastMenuSignature) return
 
-        // New menu — type and send the next step right now.
+        // -------- New menu — fire immediately --------
         lastMenuSignature = a.menu
         UssdLog.append("📩 Menu: ${a.menu.replace("\n", " | ")}")
 
@@ -89,9 +102,10 @@ class UssdAccessibilityService : AccessibilityService() {
                 }
             }
 
-            // ---- Input candidate ----
             if (node.isEnabled) {
                 val vid = node.viewIdResourceName
+
+                // ---- Input candidate ----
                 if (input == null || !inputIsIdMatch) {
                     if (vid != null && vid in INPUT_IDS) {
                         input = node; inputIsIdMatch = true
@@ -123,7 +137,7 @@ class UssdAccessibilityService : AccessibilityService() {
         return Analysis(sb.toString().trim(), i, s)
     }
 
-    // ---------- Fire immediately ----------
+    // ---------- Fire the step immediately ----------
 
     private fun fireStep(a: Analysis, step: String) {
         val args = Bundle().apply {
@@ -135,6 +149,7 @@ class UssdAccessibilityService : AccessibilityService() {
         val typed = a.input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
         UssdLog.append(if (typed) "⌨️ Typed: $step" else "⚠️ Typing failed: $step")
 
+        // Consume the step — the store advances its internal cursor.
         UssdStepStore.next()
 
         val clicked = a.send.performAction(AccessibilityNodeInfo.ACTION_CLICK)
