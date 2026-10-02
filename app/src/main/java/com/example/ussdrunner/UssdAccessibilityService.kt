@@ -7,7 +7,19 @@ import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
+/**
+ * Watches for USSD dialogs. Types the next queued step every 3 seconds
+ * and presses Send, so the user can watch the session unfold.
+ */
 class UssdAccessibilityService : AccessibilityService() {
+
+    companion object {
+        /** How long to wait before typing each step (ms). */
+        private const val STEP_DELAY_MS = 3000L
+
+        /** How long to ignore new events after typing, so we don't double‑fire. */
+        private const val DEBOUNCE_MS = 3500L
+    }
 
     private val handler = Handler(Looper.getMainLooper())
     private var debouncing = false
@@ -24,10 +36,9 @@ class UssdAccessibilityService : AccessibilityService() {
         if (debouncing) return
 
         val root = rootInActiveWindow ?: return
-        val input = findInput(root) ?: return
-        val send = findSend(root) ?: return
+        if (findInput(root) == null || findSend(root) == null) return
 
-        // ---- Capture the visible dialog text for the live feed ----
+        // ---- Log the visible dialog text (once per unique menu) ----
         val dialogText = extractText(root).trim()
         if (dialogText.isNotEmpty() && dialogText != lastDialogText) {
             lastDialogText = dialogText
@@ -35,31 +46,39 @@ class UssdAccessibilityService : AccessibilityService() {
         }
 
         val next = UssdStepStore.next() ?: return
+        UssdLog.append("⏳ Waiting ${STEP_DELAY_MS / 1000}s before typing: $next")
 
         debouncing = true
-        handler.postDelayed({
-            val freshRoot = rootInActiveWindow
-            val freshInput = freshRoot?.let { findInput(it) }
-            val freshSend = freshRoot?.let { findSend(it) }
+        handler.postDelayed({ typeStep(next) }, STEP_DELAY_MS)
+    }
 
-            if (freshInput != null) {
-                val args = Bundle().apply {
-                    putCharSequence(
-                        AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
-                        next
-                    )
-                }
-                val ok = freshInput.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-                UssdLog.append(if (ok) "⌨️ Typed: $next" else "⚠️ Could not type: $next")
-            } else {
-                UssdLog.append("⚠️ Input field disappeared before typing $next")
+    private fun typeStep(step: String) {
+        val root = rootInActiveWindow
+        val input = root?.let { findInput(it) }
+        val send = root?.let { findSend(it) }
+
+        if (input != null) {
+            val args = Bundle().apply {
+                putCharSequence(
+                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                    step
+                )
             }
+            val ok = input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            UssdLog.append(if (ok) "⌨️ Typed: $step" else "⚠️ Could not type: $step")
+        } else {
+            UssdLog.append("⚠️ Input field gone before typing $step")
+        }
 
-            val clicked = freshSend?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
-            UssdLog.append(if (clicked) "✅ Sent: $next" else "⚠️ Send button not found")
+        // Small pause so the user sees the text land, then click Send.
+        handler.postDelayed({
+            val r2 = rootInActiveWindow
+            val s2 = r2?.let { findSend(it) }
+            val clicked = s2?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+            UssdLog.append(if (clicked) "✅ Sent: $step" else "⚠️ Send button not found")
 
-            handler.postDelayed({ debouncing = false }, 600)
-        }, 300)
+            handler.postDelayed({ debouncing = false }, DEBOUNCE_MS)
+        }, 800L)
     }
 
     // ---------- Text extraction ----------
