@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/screen_bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_header_gradient"
+            android:elevation="6dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="20dp">
+
+            <ImageView
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:background="@drawable/bg_icon_circle"
+                android:contentDescription="@null"
+                android:padding="12dp"
+                android:src="@drawable/ic_ussd"
+                app:tint="@color/white" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/app_name"
+                    android:textColor="@color/white"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/header_sub"
+                    android:textColor="#D9FFFFFF"
+                    android:textSize="13sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:letterSpacing="0.12"
+            android:text="@string/section_sim"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:cardBackgroundColor="@color/white"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="1dp">
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilSim"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="14dp"
+                android:hint="@string/hint_sim"
+                app:startIconDrawable="@drawable/ic_sim">
+
+                <AutoCompleteTextView
+                    android:id="@+id/actSim"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="none"
+                    android:textColor="@color/text_primary" />
+            </com.google.android.material.textfield.TextInputLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:letterSpacing="0.12"
+            android:text="@string/section_ussd"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:cardBackgroundColor="@color/white"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="1dp">
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilUssd"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="14dp"
+                android:hint="@string/hint_ussd"
+                app:helperText="@string/helper_ussd"
+                app:startIconDrawable="@drawable/ic_dial">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etUssdInit"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="phone"
+                    android:textColor="@color/text_primary" />
+            </com.google.android.material.textfield.TextInputLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:letterSpacing="0.12"
+            android:text="@string/section_steps"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:cardBackgroundColor="@color/white"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="1dp">
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilSteps"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="14dp"
+                android:hint="@string/hint_steps"
+                app:helperText="@string/helper_steps"
+                app:startIconDrawable="@drawable/ic_steps">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etSteps"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="phone"
+                    android:textColor="@color/text_primary" />
+            </com.google.android.material.textfield.TextInputLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnStart"
+            android:layout_width="match_parent"
+            android:layout_height="58dp"
+            android:layout_marginTop="22dp"
+            android:text="@string/btn_start"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:cornerRadius="18dp"
+            app:icon="@drawable/ic_play"
+            app:iconGravity="textStart"
+            app:iconPadding="10dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:letterSpacing="0.12"
+                android:text="@string/section_log"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnClearLog"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="@string/btn_clear"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="220dp"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="#FF0B1220"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="1dp">
+
+            <androidx.core.widget.NestedScrollView
+                android:id="@+id/svLog"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:padding="12dp">
+
+                <TextView
+                    android:id="@+id/tvLog"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:text="@string/log_empty"
+                    android:textColor="#FFE5E7EB"
+                    android:textIsSelectable="true"
+                    android:textSize="12sp" />
+            </androidx.core.widget.NestedScrollView>
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+</ScrollView>
