@@ -1,8 +1,8 @@
 package com.example.ussdrunner
 
 /**
- * Shared singleton that stores the queue of USSD replies for the current session.
- * The Activity (or AutomationEngine) writes the list, the AccessibilityService
+ * Shared singleton that holds the queue of USSD replies for the current session.
+ * The Activity (or AutomationEngine) writes the list; the AccessibilityService
  * consumes it one step at a time.
  */
 object UssdStepStore {
@@ -10,7 +10,7 @@ object UssdStepStore {
     @Volatile private var steps: List<String> = emptyList()
     @Volatile private var index: Int = 0
 
-    /** True while there is at least one step not yet sent. */
+    /** True while there is at least one step left to send. */
     @Volatile
     var active: Boolean = false
         private set
@@ -20,13 +20,10 @@ object UssdStepStore {
     var lastSentStep: String? = null
         private set
 
-    /** Total number of steps in the current session. */
     val total: Int get() = steps.size
-
-    /** How many steps have been consumed so far. */
     val sentCount: Int get() = index
 
-    /** Start a new session with the given list of steps. */
+    /** Start a new session. */
     @Synchronized
     fun begin(newSteps: List<String>) {
         steps = newSteps
@@ -35,7 +32,11 @@ object UssdStepStore {
         active = newSteps.isNotEmpty()
     }
 
-    /** Return the next step and advance the cursor, or null if done. */
+    /** Look at the next step without consuming it. */
+    @Synchronized
+    fun peek(): String? = steps.getOrNull(index)
+
+    /** Return the next step and advance the cursor, or null when done. */
     @Synchronized
     fun next(): String? {
         if (index >= steps.size) {
@@ -47,11 +48,9 @@ object UssdStepStore {
         return s
     }
 
-    /** True when every step has been consumed. */
     @Synchronized
     fun isDone(): Boolean = index >= steps.size
 
-    /** Wipe the queue. */
     @Synchronized
     fun reset() {
         steps = emptyList()
