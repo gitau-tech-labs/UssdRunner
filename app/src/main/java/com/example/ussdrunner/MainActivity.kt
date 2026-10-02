@@ -19,28 +19,26 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Init singletons once, at app start.
         MpesaStore.init(this)
         ProductStore.init(this)
+        FailedStore.init(this)
         AutomationEngine.attach(this)
 
         ensurePermissions()
 
-        if (savedInstanceState == null) {
-            swap(RunnerFragment())
-        }
+        if (savedInstanceState == null) swap(RunnerFragment())
 
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNav)
         bottomNav.setOnItemSelectedListener { item ->
             val frag: Fragment = when (item.itemId) {
                 R.id.nav_runner   -> RunnerFragment()
                 R.id.nav_inbox    -> InboxFragment()
+                R.id.nav_failed   -> FailedFragment()
                 R.id.nav_products -> ProductsFragment()
                 R.id.nav_settings -> SettingsFragment()
                 else -> return@setOnItemSelectedListener false
             }
-            swap(frag)
-            true
+            swap(frag); true
         }
     }
 
