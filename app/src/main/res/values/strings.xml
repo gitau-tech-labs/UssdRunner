@@ -6,6 +6,7 @@
     <string name="section_sim">SIM CARD</string>
     <string name="section_ussd">USSD INITIALIZER</string>
     <string name="section_steps">STEPS</string>
+    <string name="section_log">LIVE FEED</string>
 
     <string name="hint_sim">Select SIM</string>
     <string name="hint_ussd">e.g. *123#</string>
@@ -14,6 +15,9 @@
     <string name="helper_steps">Comma‑separated replies, sent in order</string>
 
     <string name="btn_start">Start USSD Session</string>
+    <string name="btn_clear">Clear</string>
+
+    <string name="log_empty">Waiting for USSD activity…</string>
 
     <string name="notice_title">Accessibility permission</string>
     <string name="notice_body">Required to auto‑fill the USSD replies. Enable USSD Runner in Settings → Accessibility.</string>
