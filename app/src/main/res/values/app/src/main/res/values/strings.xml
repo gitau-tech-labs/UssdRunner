@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">USSD Runner</string>
+    <string name="header_sub">Automate multi‑step USSD sessions</string>
+
+    <string name="section_sim">SIM CARD</string>
+    <string name="section_ussd">USSD INITIALIZER</string>
+    <string name="section_steps">STEPS</string>
+
+    <string name="hint_sim">Select SIM</string>
+    <string name="hint_ussd">e.g. *123#</string>
+    <string name="helper_ussd">The code that opens the USSD menu</string>
+    <string name="hint_steps">e.g. 1,2,1,2</string>
+    <string name="helper_steps">Comma‑separated replies, sent in order</string>
+
+    <string name="btn_start">Start USSD Session</string>
+
+    <string name="notice_title">Accessibility permission</string>
+    <string name="notice_body">Required to auto‑fill the USSD replies. Enable USSD Runner in Settings → Accessibility.</string>
+
+    <string name="accessibility_description">Allows USSD Runner to read USSD dialogs and enter replies automatically.</string>
+</resources>
