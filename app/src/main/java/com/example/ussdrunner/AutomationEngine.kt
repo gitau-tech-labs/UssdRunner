@@ -9,7 +9,8 @@ import android.os.Looper
 
 object AutomationEngine {
 
-    private const val COMPLETION_DELAY_MS = 10_000L
+    /** If no new USSD dialog appears within this window, treat the flow as failed. */
+    private const val STALL_TIMEOUT_MS = 45_000L
 
     @Volatile var activeTransaction: MpesaTransaction? = null
         private set
@@ -17,31 +18,51 @@ object AutomationEngine {
         private set
 
     private val handler = Handler(Looper.getMainLooper())
-    private var completionScheduled = false
+    private var appCtx: Context? = null
+    private var stallWatchdog: Runnable? = null
+
+    fun attach(context: Context) { appCtx = context.applicationContext }
 
     fun trigger(context: Context, product: Product, tx: MpesaTransaction) {
         val resolved = PlaceholderResolver.resolveAll(product.steps, tx)
-        UssdLog.append("🎬 Matched: ${product.name} (KSH ${"%.2f".format(product.price)})")
+        UssdLog.append("🎬 Matched: ${product.name} (KSH %.2f)".format(product.price))
         UssdLog.append("📋 Steps: ${resolved.joinToString(" → ")}")
 
         activeTransaction = tx
         activeProduct = product
-        completionScheduled = false
         UssdStepStore.begin(resolved)
 
         val init = AppPrefs.getInitializer(context)
         if (init.isBlank()) {
-            UssdLog.append("❌ No USSD initializer set"); return
+            UssdLog.append("❌ No USSD initializer set")
+            fail("No initializer configured")
+            return
         }
-        val subId = AppPrefs.getSystemSubId(context)
-        dialUssd(context, init, subId)
+
+        armWatchdog()
+        dialUssd(context, init, AppPrefs.getSystemSubId(context))
     }
 
-    /** Called by the accessibility service when the last step has been sent. */
+    /** Called by the accessibility service every time it successfully sends a step. */
+    fun heartbeat() {
+        if (activeTransaction != null) armWatchdog()
+    }
+
+    /** Called by the accessibility service when the last step is sent. */
     fun scheduleCompletion() {
-        if (completionScheduled) return
-        completionScheduled = true
-        handler.postDelayed({ complete() }, COMPLETION_DELAY_MS)
+        cancelWatchdog()
+        handler.postDelayed({ complete() }, 10_000L)
+    }
+
+    private fun armWatchdog() {
+        cancelWatchdog()
+        stallWatchdog = Runnable { fail("Flow stalled — no dialog activity") }
+        handler.postDelayed(stallWatchdog!!, STALL_TIMEOUT_MS)
+    }
+
+    private fun cancelWatchdog() {
+        stallWatchdog?.let { handler.removeCallbacks(it) }
+        stallWatchdog = null
     }
 
     private fun complete() {
@@ -51,16 +72,32 @@ object AutomationEngine {
 
         UssdLog.append("✅ Flow complete for ${tx.code}")
         if (AppPrefs.isSendSuccessSms(ctx)) {
-            val msg = PlaceholderResolver.resolveMessage(product.successMessage, tx)
+            val template = product.successMessage.ifBlank { AppPrefs.getSuccessMessage(ctx) }
+            val msg = PlaceholderResolver.resolveMessage(template, tx)
             SmsSender.send(ctx, tx.phone, msg, AppPrefs.getSystemSubId(ctx))
         }
-        activeTransaction = null; activeProduct = null; completionScheduled = false
+        clear()
     }
 
-    // A tiny static context ref so we don't pass Context into complete()
-    private var appCtx: Context? = null
+    private fun fail(reason: String) {
+        val tx = activeTransaction ?: return
+        val ctx = appCtx ?: return
 
-    fun attach(context: Context) { appCtx = context.applicationContext }
+        UssdLog.append("❌ Flow failed: $reason")
+        if (AppPrefs.isSendSuccessSms(ctx)) {   // same toggle governs failed SMS too
+            val template = AppPrefs.getFailedMessage(ctx)
+            val msg = PlaceholderResolver.resolveMessage(template, tx)
+            SmsSender.send(ctx, tx.phone, msg, AppPrefs.getSystemSubId(ctx))
+        }
+        clear()
+    }
+
+    private fun clear() {
+        cancelWatchdog()
+        activeTransaction = null
+        activeProduct = null
+        UssdStepStore.reset()
+    }
 
     private fun dialUssd(context: Context, code: String, subId: Int) {
         val encoded = code.replace("#", "%23").replace("*", "%2A")
@@ -72,6 +109,11 @@ object AutomationEngine {
             }
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        context.startActivity(intent)
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            UssdLog.append("❌ Dialer error: ${e.message}")
+            fail("Dialer error: ${e.message}")
+        }
     }
 }
