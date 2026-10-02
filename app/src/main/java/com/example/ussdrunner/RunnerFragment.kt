@@ -57,7 +57,6 @@ class RunnerFragment : Fragment() {
         }
         btnClearLog.setOnClickListener { UssdLog.clear() }
 
-        // Prefill initializer from prefs, if any
         val init = AppPrefs.getInitializer(requireContext())
         if (init.isNotBlank()) etUssdInit.setText(init)
 
@@ -87,7 +86,7 @@ class RunnerFragment : Fragment() {
         actSim.isEnabled = true
         actSim.setAdapter(ArrayAdapter(ctx, android.R.layout.simple_list_item_1, labels))
 
-        val saved = AppPrefs.getSystemSubId(ctx)
+        val saved = AppPrefs.getUssdSubId(ctx)
         val idx = subs.indexOfFirst { it.subscriptionId == saved }.takeIf { it >= 0 } ?: 0
         actSim.setText(labels[idx], false)
         selectedSubId = subs[idx].subscriptionId
@@ -95,7 +94,7 @@ class RunnerFragment : Fragment() {
         actSim.setOnItemClickListener { _, _, position, _ ->
             if (position in subs.indices) {
                 selectedSubId = subs[position].subscriptionId
-                AppPrefs.setSystemSubId(requireContext(), selectedSubId)
+                AppPrefs.setUssdSubId(requireContext(), selectedSubId)
             }
         }
     }
@@ -132,7 +131,7 @@ class RunnerFragment : Fragment() {
         if (!isAccessibilityEnabled()) { showAccessibilityDialog(); return }
 
         AppPrefs.setInitializer(requireContext(), init)
-        AppPrefs.setSystemSubId(requireContext(), selectedSubId)
+        AppPrefs.setUssdSubId(requireContext(), selectedSubId)
 
         val steps = stepsRaw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
         UssdStepStore.begin(steps)
