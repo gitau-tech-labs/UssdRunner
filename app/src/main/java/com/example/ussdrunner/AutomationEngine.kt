@@ -6,11 +6,11 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import java.util.UUID
 
 object AutomationEngine {
 
-    /** If no dialog activity appears within this window, treat the flow as failed. */
-    private const val STALL_TIMEOUT_MS = 45_000L
+    private const val STALL_TIMEOUT_MS = 20_000L
 
     @Volatile var activeTransaction: MpesaTransaction? = null
         private set
@@ -23,6 +23,8 @@ object AutomationEngine {
 
     fun attach(context: Context) { appCtx = context.applicationContext }
 
+    // ---------- Trigger (auto or manual) ----------
+
     fun trigger(context: Context, product: Product, tx: MpesaTransaction) {
         val resolved = PlaceholderResolver.resolveAll(product.steps, tx)
         UssdLog.append("🎬 Matched: ${product.name} (KSH %.2f)".format(product.price))
@@ -33,22 +35,31 @@ object AutomationEngine {
         UssdStepStore.begin(resolved)
 
         val init = AppPrefs.getInitializer(context)
-        if (init.isBlank()) {
-            UssdLog.append("❌ No USSD initializer set")
-            fail("No initializer configured")
-            return
-        }
+        if (init.isBlank()) { fail("No initializer configured"); return }
+
         armWatchdog()
         dialUssd(context, init, AppPrefs.getUssdSubId(context))
     }
 
-    /** Called by the accessibility service after each non-final step is sent. */
+    /** Called from the Failed screen Retry button. */
+    fun retry(context: Context, failureId: String) {
+        val f = FailedStore.find(failureId) ?: return
+        val product = ProductStore.products.value.orEmpty().firstOrNull { it.id == f.productId }
+            ?: ProductStore.findMatching(f.tx.amount)
+
+        if (product == null) {
+            UssdLog.append("❌ Retry failed: no product for KSH %.2f".format(f.tx.amount))
+            return
+        }
+        FailedStore.bumpRetry(failureId)
+        UssdLog.append("🔁 Retry #${f.retryCount + 1} for ${f.tx.code}")
+        trigger(context, product, f.tx)
+    }
+
+    // ---------- Hooks from accessibility service ----------
+
     fun heartbeat() { if (activeTransaction != null) armWatchdog() }
 
-    /**
-     * Called by the accessibility service the moment the last step is sent.
-     * We assume success and send the customer SMS immediately — no wait.
-     */
     fun onStepsComplete() {
         val tx = activeTransaction ?: return
         val product = activeProduct ?: return
@@ -62,31 +73,59 @@ object AutomationEngine {
             val msg = PlaceholderResolver.resolveMessage(template, tx)
             SmsSender.send(ctx, tx.phone, msg, AppPrefs.getSmsSubId(ctx))
         }
-        clear()
+        refresh(ctx, "success")
     }
+
+    // ---------- Failure ----------
 
     private fun fail(reason: String) {
-        val tx = activeTransaction ?: return
-        val ctx = appCtx ?: return
+        val tx = activeTransaction
+        val product = activeProduct
+        val ctx = appCtx
 
         UssdLog.append("❌ Flow failed: $reason")
-        if (AppPrefs.isSendSuccessSms(ctx)) {
-            val msg = PlaceholderResolver.resolveMessage(AppPrefs.getFailedMessage(ctx), tx)
-            SmsSender.send(ctx, tx.phone, msg, AppPrefs.getSmsSubId(ctx))
+
+        if (tx != null && ctx != null) {
+            FailedStore.add(
+                FailedTransaction(
+                    id = UUID.randomUUID().toString(),
+                    tx = tx,
+                    productId = product?.id,
+                    productName = product?.name ?: "Unknown product",
+                    reason = reason
+                )
+            )
+            if (AppPrefs.isSendSuccessSms(ctx)) {
+                val msg = PlaceholderResolver.resolveMessage(AppPrefs.getFailedMessage(ctx), tx)
+                SmsSender.send(ctx, tx.phone, msg, AppPrefs.getSmsSubId(ctx))
+            }
+            refresh(ctx, "failure")
+        } else {
+            hardReset()
         }
-        clear()
     }
 
-    private fun clear() {
+    // ---------- Full system refresh ----------
+
+    private fun refresh(ctx: Context, tag: String) {
+        hardReset()
+        UssdLog.append("🔄 Ready for next transaction ($tag)")
+    }
+
+    private fun hardReset() {
         cancelWatchdog()
         activeTransaction = null
         activeProduct = null
         UssdStepStore.reset()
+        // The accessibility service notices UssdStepStore.active == false
+        // and clears its internal menu signature automatically.
     }
+
+    // ---------- Watchdog ----------
 
     private fun armWatchdog() {
         cancelWatchdog()
-        watchdog = Runnable { fail("Flow stalled — no dialog activity") }
+        watchdog = Runnable { fail("No dialog activity for ${STALL_TIMEOUT_MS / 1000}s") }
         handler.postDelayed(watchdog!!, STALL_TIMEOUT_MS)
     }
 
@@ -94,6 +133,8 @@ object AutomationEngine {
         watchdog?.let { handler.removeCallbacks(it) }
         watchdog = null
     }
+
+    // ---------- Dialer ----------
 
     private fun dialUssd(context: Context, code: String, subId: Int) {
         val encoded = code.replace("#", "%23").replace("*", "%2A")
@@ -106,9 +147,6 @@ object AutomationEngine {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         try { context.startActivity(intent) }
-        catch (e: Exception) {
-            UssdLog.append("❌ Dialer error: ${e.message}")
-            fail("Dialer error: ${e.message}")
-        }
+        catch (e: Exception) { fail("Dialer error: ${e.message}") }
     }
 }
