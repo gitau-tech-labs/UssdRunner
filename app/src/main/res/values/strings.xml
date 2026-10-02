@@ -44,8 +44,8 @@
     <string name="products_field_price">Price (KSH)</string>
     <string name="products_field_steps">Steps</string>
     <string name="products_field_steps_help">Comma‑separated. Placeholders: {customer_phone} {customer_phone_local} {amount} {customer_name} {code}</string>
-    <string name="products_field_message">Success SMS</string>
-    <string name="products_field_message_help">Sent to the customer after the flow completes. Same placeholders allowed.</string>
+    <string name="products_field_message">Success SMS (blank = use global default)</string>
+    <string name="products_field_message_help">Leave blank to use the global template from Settings.</string>
     <string name="products_field_enabled">Enabled</string>
 
     <string name="settings_title">SETTINGS</string>
@@ -57,4 +57,10 @@
     <string name="settings_send_sms">Send success SMS after each flow</string>
     <string name="settings_save">Save settings</string>
     <string name="settings_saved">Settings saved</string>
+
+    <string name="settings_messages">CUSTOMER MESSAGES</string>
+    <string name="settings_success_msg">Success SMS</string>
+    <string name="settings_failed_msg">Failed SMS</string>
+    <string name="settings_msg_help">Placeholders: {customer_name} {customer_phone} {customer_phone_local} {amount} {amount_full} {code}</string>
+    <string name="settings_msg_reset">Reset to default</string>
 </resources>
