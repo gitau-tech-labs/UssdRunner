@@ -22,7 +22,8 @@ class SettingsFragment : Fragment() {
 
     private var subs: List<SubscriptionInfo> = emptyList()
 
-    private lateinit var actSys: AutoCompleteTextView
+    private lateinit var actUssd: AutoCompleteTextView
+    private lateinit var actSms: AutoCompleteTextView
     private lateinit var actMpesa: AutoCompleteTextView
     private lateinit var etInitializer: TextInputEditText
     private lateinit var etSuccessMessage: TextInputEditText
@@ -30,15 +31,17 @@ class SettingsFragment : Fragment() {
     private lateinit var switchAuto: MaterialSwitch
     private lateinit var switchSms: MaterialSwitch
 
-    private var sysSubId = SubscriptionManager.INVALID_SUBSCRIPTION_ID
-    private var mpesaSubId = SubscriptionManager.INVALID_SUBSCRIPTION_ID
+    private var ussdSubId   = SubscriptionManager.INVALID_SUBSCRIPTION_ID
+    private var smsSubId    = SubscriptionManager.INVALID_SUBSCRIPTION_ID
+    private var mpesaSubId  = SubscriptionManager.INVALID_SUBSCRIPTION_ID
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, b: Bundle?
     ): View = inflater.inflate(R.layout.fragment_settings, container, false)
 
     override fun onViewCreated(v: View, b: Bundle?) {
-        actSys           = v.findViewById(R.id.actSysSim)
+        actUssd          = v.findViewById(R.id.actUssdSim)
+        actSms           = v.findViewById(R.id.actSmsSim)
         actMpesa         = v.findViewById(R.id.actMpesaSim)
         etInitializer    = v.findViewById(R.id.etInitializer)
         etSuccessMessage = v.findViewById(R.id.etSuccessMessage)
@@ -76,33 +79,41 @@ class SettingsFragment : Fragment() {
             "$name  ·  SIM $slot"
         }
         if (labels.isEmpty()) {
-            actSys.setText("No SIM detected", false); actSys.isEnabled = false
-            actMpesa.setText("No SIM detected", false); actMpesa.isEnabled = false
+            listOf(actUssd, actSms, actMpesa).forEach {
+                it.setText("No SIM detected", false); it.isEnabled = false
+            }
             return
         }
 
         val adapter = ArrayAdapter(ctx, android.R.layout.simple_list_item_1, labels)
-        actSys.setAdapter(adapter)
+        actUssd.setAdapter(adapter)
+        actSms.setAdapter(adapter)
         actMpesa.setAdapter(adapter)
 
-        val savedSys   = AppPrefs.getSystemSubId(ctx)
-        val savedMpesa = AppPrefs.getMpesaSubId(ctx)
+        val savedUssd   = AppPrefs.getUssdSubId(ctx)
+        val savedSms    = AppPrefs.getSmsSubId(ctx)
+        val savedMpesa  = AppPrefs.getMpesaSubId(ctx)
 
-        val sysIdx   = subs.indexOfFirst { it.subscriptionId == savedSys }.takeIf { it >= 0 } ?: 0
-        val mpesaIdx = subs.indexOfFirst { it.subscriptionId == savedMpesa }.takeIf { it >= 0 } ?: sysIdx
+        val ussdIdx  = subs.indexOfFirst { it.subscriptionId == savedUssd }.takeIf  { it >= 0 } ?: 0
+        val smsIdx   = subs.indexOfFirst { it.subscriptionId == savedSms }.takeIf   { it >= 0 } ?: ussdIdx
+        val mpesaIdx = subs.indexOfFirst { it.subscriptionId == savedMpesa }.takeIf { it >= 0 } ?: ussdIdx
 
-        actSys.setText(labels[sysIdx], false);     sysSubId   = subs[sysIdx].subscriptionId
+        actUssd.setText(labels[ussdIdx], false);   ussdSubId  = subs[ussdIdx].subscriptionId
+        actSms.setText(labels[smsIdx], false);     smsSubId   = subs[smsIdx].subscriptionId
         actMpesa.setText(labels[mpesaIdx], false); mpesaSubId = subs[mpesaIdx].subscriptionId
 
-        actSys.setOnItemClickListener { _, _, pos, _ ->
-            if (pos in subs.indices) sysSubId = subs[pos].subscriptionId }
+        actUssd.setOnItemClickListener { _, _, pos, _ ->
+            if (pos in subs.indices) ussdSubId = subs[pos].subscriptionId }
+        actSms.setOnItemClickListener { _, _, pos, _ ->
+            if (pos in subs.indices) smsSubId = subs[pos].subscriptionId }
         actMpesa.setOnItemClickListener { _, _, pos, _ ->
             if (pos in subs.indices) mpesaSubId = subs[pos].subscriptionId }
     }
 
     private fun save() {
         val ctx = requireContext()
-        AppPrefs.setSystemSubId(ctx, sysSubId)
+        AppPrefs.setUssdSubId(ctx, ussdSubId)
+        AppPrefs.setSmsSubId(ctx, smsSubId)
         AppPrefs.setMpesaSubId(ctx, mpesaSubId)
         AppPrefs.setInitializer(ctx, etInitializer.text?.toString()?.trim().orEmpty())
         AppPrefs.setSuccessMessage(ctx, etSuccessMessage.text?.toString()?.trim().orEmpty())
