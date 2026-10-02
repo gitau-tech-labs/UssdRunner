@@ -2,100 +2,54 @@ package com.example.ussdrunner
 
 import android.accessibilityservice.AccessibilityService
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * Watches for USSD dialogs.
+ * Watches for USSD dialogs. As soon as a *new* menu text appears, it types
+ * the next queued step, presses Send, and moves on — no delays.
  *
- *  1. Detects the dialog the moment it appears on screen and logs it.
- *  2. Captures the menu text so the LIVE FEED shows what the network returned.
- *  3. When a session is active, waits 3 s, types the next queued step,
- *     pauses 800 ms so the digit is visible, presses Send.
- *  4. Fires AutomationEngine.heartbeat() after every successful send, and
- *     AutomationEngine.scheduleCompletion() when the last step has been sent.
+ * Key idea: the editable input field is EXCLUDED from the "menu signature",
+ * so typing into it does not count as a new menu. Only a real new prompt from
+ * the network triggers the next step.
  */
 class UssdAccessibilityService : AccessibilityService() {
 
-    companion object {
-        /** Wait this long after the dialog appears before typing the next step (ms). */
-        private const val STEP_DELAY_MS = 3000L
-
-        /** Ignore events for this long after a send, to avoid double‑firing. */
-        private const val DEBOUNCE_MS = 3500L
-
-        /** Pause between typing the digits and clicking Send (ms). */
-        private const val TYPE_TO_SEND_MS = 800L
-    }
-
-    private val handler = Handler(Looper.getMainLooper())
-
-    private var dialogVisible = false
-    private var lastDialogText: String = ""
-    private var debouncing = false
+    private var lastMenuSignature: String = ""
+    private var processing = false
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
+        if (!UssdStepStore.active) return
 
         val type = event.eventType
         if (type != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
             type != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) return
 
-        val root = rootInActiveWindow
-        val detected = root != null && isUssdDialog(root)
+        if (processing) return
 
-        // -------- 1. Appearance / disappearance --------
-        if (detected && !dialogVisible) {
-            dialogVisible = true
-            UssdLog.append("🔔 DIALOG DETECTED")
-        } else if (!detected && dialogVisible) {
-            dialogVisible = false
-            lastDialogText = ""
-            UssdLog.append("🛑 DIALOG CLOSED")
-            return
-        }
+        val root = rootInActiveWindow ?: return
+        if (!isUssdDialog(root)) return
 
-        if (!detected || root == null) return
+        val signature = extractMenuSignature(root)
+        if (signature.isEmpty() || signature == lastMenuSignature) return
 
-        // -------- 2. Log the menu text (once per unique menu) --------
-        val text = extractText(root).trim()
-        if (text.isNotEmpty() && text != lastDialogText) {
-            lastDialogText = text
-            UssdLog.append("📩 Menu: ${text.replace("\n", " | ")}")
-        }
+        // -------- New menu detected --------
+        lastMenuSignature = signature
+        UssdLog.append("📩 Menu: ${signature.replace("\n", " | ")}")
 
-        // -------- 3. Automation (only when a session is running) --------
-        if (!UssdStepStore.active) return
-        if (debouncing) return
-
-        val input = findInput(root) ?: return
-        val send  = findSend(root)  ?: return
-
-        // Peek at the next step without consuming it, so we can log the wait first.
-        val next = peekNextStep() ?: return
-
-        UssdLog.append("⏳ Typing in ${STEP_DELAY_MS / 1000}s: $next")
-
-        debouncing = true
-        handler.postDelayed({ typeStep(next) }, STEP_DELAY_MS)
-
-        // Unused here but kept for symmetry; typeStep() re-queries the tree.
-        @Suppress("UNUSED_EXPRESSION") (input to send)
+        val step = UssdStepStore.peek() ?: return
+        processing = true
+        fireStep(root, step)
+        processing = false
     }
 
-    // ---------- Step execution ----------
-
-    private fun typeStep(step: String) {
-        // Re‑query the tree in case it changed since the delay started.
-        val freshRoot = rootInActiveWindow
-        val input = freshRoot?.let { findInput(it) }
-        val send  = freshRoot?.let { findSend(it) }
+    private fun fireStep(root: AccessibilityNodeInfo, step: String) {
+        val input = findInput(root)
+        val send  = findSend(root)
 
         if (input == null) {
-            UssdLog.append("⚠️ Input field gone before typing $step")
-            debouncing = false
+            UssdLog.append("⚠️ Input field missing — step '$step' skipped")
             return
         }
 
@@ -105,62 +59,53 @@ class UssdAccessibilityService : AccessibilityService() {
                 step
             )
         }
-        val ok = input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-        UssdLog.append(if (ok) "⌨️ Typed: $step" else "⚠️ Could not type: $step")
+        val typed = input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        UssdLog.append(if (typed) "⌨️ Typed: $step" else "⚠️ Typing failed: $step")
 
-        // Pause so the digit is visibly entered before we press Send.
-        handler.postDelayed({
-            val r2 = rootInActiveWindow
-            val s2 = r2?.let { findSend(it) }
-            val clicked = s2?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
-            UssdLog.append(if (clicked) "✅ Sent: $step" else "⚠️ Send button not found")
+        // Consume the step now that we've actually put it in the field.
+        UssdStepStore.next()
 
-            // -------- AutomationEngine hooks --------
-            if (clicked) {
-                // Consume the step we actually sent, keeping the queue in sync.
-                UssdStepStore.next()
-                if (UssdStepStore.isDone()) {
-                    AutomationEngine.scheduleCompletion()
-                } else {
-                    AutomationEngine.heartbeat()
-                }
+        if (send == null) {
+            UssdLog.append("⚠️ Send button not found")
+            return
+        }
+        val clicked = send.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        UssdLog.append(if (clicked) "✅ Sent: $step" else "⚠️ Send click failed: $step")
+
+        if (clicked) {
+            if (UssdStepStore.isDone()) {
+                UssdLog.append("🏁 All steps sent — assuming success")
+                AutomationEngine.onStepsComplete()
+            } else {
+                AutomationEngine.heartbeat()
             }
-
-            handler.postDelayed({ debouncing = false }, DEBOUNCE_MS)
-        }, TYPE_TO_SEND_MS)
-    }
-
-    /** Look at the next step without consuming it (used for the "Typing in 3s" log). */
-    private fun peekNextStep(): String? {
-        // We haven't consumed it yet, so ask the store for the current head.
-        // UssdStepStore.next() consumes, so we track the cursor differently:
-        // we simply ask for the step that WOULD be sent next.
-        return UssdStepStore.peek()
+        }
     }
 
     // ---------- Dialog detection ----------
 
-    /** A node tree is a USSD dialog if it contains an editable field AND a Send/OK button. */
     private fun isUssdDialog(root: AccessibilityNodeInfo): Boolean =
         findInput(root) != null && findSend(root) != null
 
-    // ---------- Text extraction ----------
+    // ---------- Menu signature (ignores editable field contents) ----------
 
-    private fun extractText(node: AccessibilityNodeInfo?): String {
+    private fun extractMenuSignature(node: AccessibilityNodeInfo?): String {
         node ?: return ""
         val sb = StringBuilder()
-        collectText(node, sb)
-        return sb.toString()
+        collectMenu(node, sb)
+        return sb.toString().trim()
     }
 
-    private fun collectText(node: AccessibilityNodeInfo, sb: StringBuilder) {
-        val t = node.text?.toString()
-        if (!t.isNullOrBlank()) {
-            if (sb.isNotEmpty()) sb.append("\n")
-            sb.append(t)
+    private fun collectMenu(node: AccessibilityNodeInfo, sb: StringBuilder) {
+        if (!node.isEditable) {
+            val t = node.text?.toString()
+            if (!t.isNullOrBlank()) {
+                if (sb.isNotEmpty()) sb.append("\n")
+                sb.append(t)
+            }
         }
         for (i in 0 until node.childCount) {
-            node.getChild(i)?.let { collectText(it, sb) }
+            node.getChild(i)?.let { collectMenu(it, sb) }
         }
     }
 
