@@ -1,9 +1,6 @@
 package com.example.ussdrunner
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import java.util.UUID
@@ -38,7 +35,7 @@ object AutomationEngine {
         if (init.isBlank()) { fail("No initializer configured"); return }
 
         armWatchdog()
-        dialUssd(context, init, AppPrefs.getUssdSubId(context))
+        SimDialer.dialUssd(context, init, AppPrefs.getUssdSubId(context))
     }
 
     /** Called from the Failed screen Retry button. */
@@ -117,8 +114,6 @@ object AutomationEngine {
         activeTransaction = null
         activeProduct = null
         UssdStepStore.reset()
-        // The accessibility service notices UssdStepStore.active == false
-        // and clears its internal menu signature automatically.
     }
 
     // ---------- Watchdog ----------
@@ -132,21 +127,5 @@ object AutomationEngine {
     private fun cancelWatchdog() {
         watchdog?.let { handler.removeCallbacks(it) }
         watchdog = null
-    }
-
-    // ---------- Dialer ----------
-
-    private fun dialUssd(context: Context, code: String, subId: Int) {
-        val encoded = code.replace("#", "%23").replace("*", "%2A")
-        val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$encoded")).apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                putExtra("com.android.phone.extra.slot", subId)
-                putExtra("simSlot", subId)
-                putExtra("subscription", subId)
-            }
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        try { context.startActivity(intent) }
-        catch (e: Exception) { fail("Dialer error: ${e.message}") }
     }
 }
