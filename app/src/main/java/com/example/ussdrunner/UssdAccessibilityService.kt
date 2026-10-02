@@ -7,14 +7,11 @@ import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
-/**
- * Watches for USSD dialogs, types the next step, and presses Send.
- * Requires the user to enable this service in Settings → Accessibility.
- */
 class UssdAccessibilityService : AccessibilityService() {
 
     private val handler = Handler(Looper.getMainLooper())
     private var debouncing = false
+    private var lastDialogText: String = ""
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
@@ -30,10 +27,16 @@ class UssdAccessibilityService : AccessibilityService() {
         val input = findInput(root) ?: return
         val send = findSend(root) ?: return
 
+        // ---- Capture the visible dialog text for the live feed ----
+        val dialogText = extractText(root).trim()
+        if (dialogText.isNotEmpty() && dialogText != lastDialogText) {
+            lastDialogText = dialogText
+            UssdLog.append("📩 Menu: ${dialogText.replace("\n", " | ")}")
+        }
+
         val next = UssdStepStore.next() ?: return
 
         debouncing = true
-        // Small delay so the dialog is fully laid out before we type.
         handler.postDelayed({
             val freshRoot = rootInActiveWindow
             val freshInput = freshRoot?.let { findInput(it) }
@@ -46,12 +49,37 @@ class UssdAccessibilityService : AccessibilityService() {
                         next
                     )
                 }
-                freshInput.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                val ok = freshInput.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                UssdLog.append(if (ok) "⌨️ Typed: $next" else "⚠️ Could not type: $next")
+            } else {
+                UssdLog.append("⚠️ Input field disappeared before typing $next")
             }
-            freshSend?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+
+            val clicked = freshSend?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+            UssdLog.append(if (clicked) "✅ Sent: $next" else "⚠️ Send button not found")
 
             handler.postDelayed({ debouncing = false }, 600)
         }, 300)
+    }
+
+    // ---------- Text extraction ----------
+
+    private fun extractText(node: AccessibilityNodeInfo?): String {
+        node ?: return ""
+        val sb = StringBuilder()
+        collectText(node, sb)
+        return sb.toString()
+    }
+
+    private fun collectText(node: AccessibilityNodeInfo, sb: StringBuilder) {
+        val t = node.text?.toString()
+        if (!t.isNullOrBlank()) {
+            if (sb.isNotEmpty()) sb.append("\n")
+            sb.append(t)
+        }
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let { collectText(it, sb) }
+        }
     }
 
     // ---------- Node discovery ----------
@@ -67,8 +95,7 @@ class UssdAccessibilityService : AccessibilityService() {
             "com.android.server.telecom:id/input"
         )
         for (id in ids) {
-            root.findAccessibilityNodeInfosByViewId(id)
-                ?.firstOrNull()?.let { return it }
+            root.findAccessibilityNodeInfosByViewId(id)?.firstOrNull()?.let { return it }
         }
         return findEditable(root)
     }
@@ -77,8 +104,7 @@ class UssdAccessibilityService : AccessibilityService() {
         node ?: return null
         if (node.isEditable && node.isEnabled) return node
         for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            findEditable(child)?.let { return it }
+            findEditable(node.getChild(i))?.let { return it }
         }
         return null
     }
@@ -93,13 +119,11 @@ class UssdAccessibilityService : AccessibilityService() {
             "android:id/button1"
         )
         for (id in ids) {
-            root.findAccessibilityNodeInfosByViewId(id)
-                ?.firstOrNull()?.let { return it }
+            root.findAccessibilityNodeInfosByViewId(id)?.firstOrNull()?.let { return it }
         }
         val texts = listOf("Send", "SEND", "OK", "Ok", "Submit", "Continue")
         for (t in texts) {
-            root.findAccessibilityNodeInfosByText(t)
-                ?.firstOrNull()?.let { return it }
+            root.findAccessibilityNodeInfosByText(t)?.firstOrNull()?.let { return it }
         }
         return null
     }
