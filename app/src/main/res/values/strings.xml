@@ -16,12 +16,10 @@
 
     <string name="btn_start">Start USSD Session</string>
     <string name="btn_clear">Clear</string>
-
     <string name="log_empty">Waiting for USSD activity…</string>
 
     <string name="notice_title">Accessibility permission</string>
     <string name="notice_body">Required to auto‑fill the USSD replies. Enable USSD Runner in Settings → Accessibility.</string>
-
     <string name="accessibility_description">Allows USSD Runner to read USSD dialogs and enter replies automatically.</string>
 
     <string name="nav_runner">Runner</string>
@@ -49,12 +47,13 @@
     <string name="products_field_enabled">Enabled</string>
 
     <string name="settings_title">SETTINGS</string>
-    <string name="settings_system_sim">SIM for USSD / SMS</string>
+    <string name="settings_ussd_sim">SIM for USSD</string>
+    <string name="settings_sms_sim">SIM for sending SMS</string>
     <string name="settings_mpesa_sim">SIM that receives M‑Pesa</string>
     <string name="settings_initializer">USSD initializer (e.g. *334#)</string>
     <string name="settings_automation">AUTOMATION</string>
     <string name="settings_auto_trigger">Auto‑trigger USSD on incoming M‑Pesa</string>
-    <string name="settings_send_sms">Send success SMS after each flow</string>
+    <string name="settings_send_sms">Send customer SMS on completion</string>
     <string name="settings_save">Save settings</string>
     <string name="settings_saved">Settings saved</string>
 
