@@ -11,8 +11,8 @@
     <string name="hint_sim">Select SIM</string>
     <string name="hint_ussd">e.g. *123#</string>
     <string name="helper_ussd">The code that opens the USSD menu</string>
-    <string name="hint_steps">e.g. 1,2,1,2</string>
-    <string name="helper_steps">Comma‑separated replies, sent in order</string>
+    <string name="hint_steps">e.g. 1,2,{customer_phone_local},1</string>
+    <string name="helper_steps">Comma‑separated. Use {customer_phone} {amount} {customer_name}</string>
 
     <string name="btn_start">Start USSD Session</string>
     <string name="btn_clear">Clear</string>
@@ -23,4 +23,38 @@
     <string name="notice_body">Required to auto‑fill the USSD replies. Enable USSD Runner in Settings → Accessibility.</string>
 
     <string name="accessibility_description">Allows USSD Runner to read USSD dialogs and enter replies automatically.</string>
+
+    <string name="nav_runner">Runner</string>
+    <string name="nav_inbox">Inbox</string>
+    <string name="nav_products">Products</string>
+    <string name="nav_settings">Settings</string>
+
+    <string name="inbox_title">M‑PESA INBOX</string>
+    <string name="inbox_total_today">Received today</string>
+    <string name="inbox_count">Transactions</string>
+    <string name="inbox_empty">No M‑Pesa transactions captured yet.\nSend yourself a test SMS or wait for the next payment.</string>
+    <string name="inbox_clear">Clear inbox</string>
+
+    <string name="products_title">PRODUCTS</string>
+    <string name="products_add">Add product</string>
+    <string name="products_empty">No products yet.\nTap “Add product” to map a price to a USSD flow.</string>
+    <string name="products_edit">Edit</string>
+    <string name="products_delete">Delete</string>
+    <string name="products_field_name">Product name</string>
+    <string name="products_field_price">Price (KSH)</string>
+    <string name="products_field_steps">Steps</string>
+    <string name="products_field_steps_help">Comma‑separated. Placeholders: {customer_phone} {customer_phone_local} {amount} {customer_name} {code}</string>
+    <string name="products_field_message">Success SMS</string>
+    <string name="products_field_message_help">Sent to the customer after the flow completes. Same placeholders allowed.</string>
+    <string name="products_field_enabled">Enabled</string>
+
+    <string name="settings_title">SETTINGS</string>
+    <string name="settings_system_sim">SIM for USSD / SMS</string>
+    <string name="settings_mpesa_sim">SIM that receives M‑Pesa</string>
+    <string name="settings_initializer">USSD initializer (e.g. *334#)</string>
+    <string name="settings_automation">AUTOMATION</string>
+    <string name="settings_auto_trigger">Auto‑trigger USSD on incoming M‑Pesa</string>
+    <string name="settings_send_sms">Send success SMS after each flow</string>
+    <string name="settings_save">Save settings</string>
+    <string name="settings_saved">Settings saved</string>
 </resources>
