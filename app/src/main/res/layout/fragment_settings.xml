@@ -1,230 +1,133 @@
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/screen_bg"
-    android:fillViewport="true">
+package com.example.ussdrunner
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.telephony.SubscriptionInfo
+import android.telephony.SubscriptionManager
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
+import android.widget.Toast
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.textfield.TextInputEditText
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:letterSpacing="0.12"
-            android:text="@string/settings_title"
-            android:textColor="@color/text_secondary"
-            android:textSize="11sp"
-            android:textStyle="bold" />
+class SettingsFragment : Fragment() {
 
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            app:cardBackgroundColor="@color/white"
-            app:cardCornerRadius="18dp"
-            app:cardElevation="1dp">
+    private var subs: List<SubscriptionInfo> = emptyList()
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
+    private lateinit var actUssd: AutoCompleteTextView
+    private lateinit var actSms: AutoCompleteTextView
+    private lateinit var actMpesa: AutoCompleteTextView
+    private lateinit var etInitializer: TextInputEditText
+    private lateinit var etSuccessMessage: TextInputEditText
+    private lateinit var etFailedMessage: TextInputEditText
+    private lateinit var switchAuto: MaterialSwitch
+    private lateinit var switchSms: MaterialSwitch
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/tilUssdSim"
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="@string/settings_ussd_sim"
-                    app:startIconDrawable="@drawable/ic_sim">
+    private var ussdSubId   = SubscriptionManager.INVALID_SUBSCRIPTION_ID
+    private var smsSubId    = SubscriptionManager.INVALID_SUBSCRIPTION_ID
+    private var mpesaSubId  = SubscriptionManager.INVALID_SUBSCRIPTION_ID
 
-                    <AutoCompleteTextView
-                        android:id="@+id/actUssdSim"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="none" />
-                </com.google.android.material.textfield.TextInputLayout>
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, b: Bundle?
+    ): View = inflater.inflate(R.layout.fragment_settings, container, false)
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/tilSmsSim"
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:hint="@string/settings_sms_sim"
-                    app:startIconDrawable="@drawable/ic_sim">
+    override fun onViewCreated(v: View, b: Bundle?) {
+        actUssd          = v.findViewById(R.id.actUssdSim)
+        actSms           = v.findViewById(R.id.actSmsSim)
+        actMpesa         = v.findViewById(R.id.actMpesaSim)
+        etInitializer    = v.findViewById(R.id.etInitializer)
+        etSuccessMessage = v.findViewById(R.id.etSuccessMessage)
+        etFailedMessage  = v.findViewById(R.id.etFailedMessage)
+        switchAuto       = v.findViewById(R.id.switchAuto)
+        switchSms        = v.findViewById(R.id.switchSendSms)
 
-                    <AutoCompleteTextView
-                        android:id="@+id/actSmsSim"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="none" />
-                </com.google.android.material.textfield.TextInputLayout>
+        v.findViewById<MaterialButton>(R.id.btnSaveSettings)
+            .setOnClickListener { save() }
+        v.findViewById<MaterialButton>(R.id.btnResetMessages)
+            .setOnClickListener { resetMessages() }
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/tilMpesaSim"
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:hint="@string/settings_mpesa_sim"
-                    app:startIconDrawable="@drawable/ic_sim">
+        val ctx = requireContext()
+        etInitializer.setText(AppPrefs.getInitializer(ctx))
+        etSuccessMessage.setText(AppPrefs.getSuccessMessage(ctx))
+        etFailedMessage.setText(AppPrefs.getFailedMessage(ctx))
+        switchAuto.isChecked = AppPrefs.isAutoTrigger(ctx)
+        switchSms.isChecked  = AppPrefs.isSendSuccessSms(ctx)
 
-                    <AutoCompleteTextView
-                        android:id="@+id/actMpesaSim"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="none" />
-                </com.google.android.material.textfield.TextInputLayout>
+        loadSims()
+    }
 
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:hint="@string/settings_initializer"
-                    app:startIconDrawable="@drawable/ic_dial">
+    private fun loadSims() {
+        val ctx = context ?: return
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_PHONE_STATE)
+            != PackageManager.PERMISSION_GRANTED) return
 
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etInitializer"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="phone" />
-                </com.google.android.material.textfield.TextInputLayout>
+        val sm = ctx.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as SubscriptionManager
+        subs = try { sm.activeSubscriptionInfoList ?: emptyList() }
+               catch (_: SecurityException) { emptyList() }
 
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+        val labels = subs.map { s ->
+            val slot = s.simSlotIndex + 1
+            val name = s.displayName?.toString()?.takeIf { it.isNotBlank() } ?: "SIM $slot"
+            "$name  ·  SIM $slot"
+        }
+        if (labels.isEmpty()) {
+            listOf(actUssd, actSms, actMpesa).forEach {
+                it.setText("No SIM detected", false); it.isEnabled = false
+            }
+            return
+        }
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:letterSpacing="0.12"
-            android:text="@string/settings_automation"
-            android:textColor="@color/text_secondary"
-            android:textSize="11sp"
-            android:textStyle="bold" />
+        val adapter = ArrayAdapter(ctx, android.R.layout.simple_list_item_1, labels)
+        actUssd.setAdapter(adapter)
+        actSms.setAdapter(adapter)
+        actMpesa.setAdapter(adapter)
 
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            app:cardBackgroundColor="@color/white"
-            app:cardCornerRadius="18dp"
-            app:cardElevation="1dp">
+        val savedUssd   = AppPrefs.getUssdSubId(ctx)
+        val savedSms    = AppPrefs.getSmsSubId(ctx)
+        val savedMpesa  = AppPrefs.getMpesaSubId(ctx)
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
+        val ussdIdx  = subs.indexOfFirst { it.subscriptionId == savedUssd }.takeIf  { it >= 0 } ?: 0
+        val smsIdx   = subs.indexOfFirst { it.subscriptionId == savedSms }.takeIf   { it >= 0 } ?: ussdIdx
+        val mpesaIdx = subs.indexOfFirst { it.subscriptionId == savedMpesa }.takeIf { it >= 0 } ?: ussdIdx
 
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/switchAuto"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/settings_auto_trigger" />
+        actUssd.setText(labels[ussdIdx], false);   ussdSubId  = subs[ussdIdx].subscriptionId
+        actSms.setText(labels[smsIdx], false);     smsSubId   = subs[smsIdx].subscriptionId
+        actMpesa.setText(labels[mpesaIdx], false); mpesaSubId = subs[mpesaIdx].subscriptionId
 
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/switchSendSms"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="@string/settings_send_sms" />
+        actUssd.setOnItemClickListener { _, _, pos, _ ->
+            if (pos in subs.indices) ussdSubId = subs[pos].subscriptionId }
+        actSms.setOnItemClickListener { _, _, pos, _ ->
+            if (pos in subs.indices) smsSubId = subs[pos].subscriptionId }
+        actMpesa.setOnItemClickListener { _, _, pos, _ ->
+            if (pos in subs.indices) mpesaSubId = subs[pos].subscriptionId }
+    }
 
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+    private fun save() {
+        val ctx = requireContext()
+        AppPrefs.setUssdSubId(ctx, ussdSubId)
+        AppPrefs.setSmsSubId(ctx, smsSubId)
+        AppPrefs.setMpesaSubId(ctx, mpesaSubId)
+        AppPrefs.setInitializer(ctx, etInitializer.text?.toString()?.trim().orEmpty())
+        AppPrefs.setSuccessMessage(ctx, etSuccessMessage.text?.toString()?.trim().orEmpty())
+        AppPrefs.setFailedMessage(ctx, etFailedMessage.text?.toString()?.trim().orEmpty())
+        AppPrefs.setAutoTrigger(ctx, switchAuto.isChecked)
+        AppPrefs.setSendSuccessSms(ctx, switchSms.isChecked)
+        Toast.makeText(ctx, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
+    }
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:letterSpacing="0.12"
-                android:text="@string/settings_messages"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnResetMessages"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:minWidth="0dp"
-                android:text="@string/settings_msg_reset"
-                android:textSize="12sp" />
-        </LinearLayout>
-
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            app:cardBackgroundColor="@color/white"
-            app:cardCornerRadius="18dp"
-            app:cardElevation="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="@string/settings_success_msg"
-                    app:helperText="@string/settings_msg_help">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etSuccessMessage"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textMultiLine"
-                        android:minLines="2" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:hint="@string/settings_failed_msg"
-                    app:helperText="@string/settings_msg_help">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etFailedMessage"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textMultiLine"
-                        android:minLines="2" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSaveSettings"
-            android:layout_width="match_parent"
-            android:layout_height="54dp"
-            android:layout_marginTop="22dp"
-            android:layout_marginBottom="16dp"
-            android:text="@string/settings_save"
-            android:textStyle="bold"
-            app:cornerRadius="16dp" />
-
-    </LinearLayout>
-</ScrollView>
+    private fun resetMessages() {
+        val ctx = requireContext()
+        AppPrefs.resetMessages(ctx)
+        etSuccessMessage.setText(AppPrefs.getSuccessMessage(ctx))
+        etFailedMessage.setText(AppPrefs.getFailedMessage(ctx))
+        Toast.makeText(ctx, "Messages reset to default", Toast.LENGTH_SHORT).show()
+    }
+}
