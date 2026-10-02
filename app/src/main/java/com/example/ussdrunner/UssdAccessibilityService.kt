@@ -8,15 +8,26 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * Detects the standard USSD dialog, logs its appearance, and — when a session
- * is active — types each queued step every 3 seconds so the user can watch.
+ * Watches for USSD dialogs.
+ *
+ *  1. Detects the dialog the moment it appears on screen and logs it.
+ *  2. Captures the menu text so the LIVE FEED shows what the network returned.
+ *  3. When a session is active, waits 3 s, types the next queued step,
+ *     pauses 800 ms so the digit is visible, presses Send.
+ *  4. Fires AutomationEngine.heartbeat() after every successful send, and
+ *     AutomationEngine.scheduleCompletion() when the last step has been sent.
  */
 class UssdAccessibilityService : AccessibilityService() {
 
     companion object {
-        private const val STEP_DELAY_MS = 3000L   // wait before typing each step
-        private const val DEBOUNCE_MS   = 3500L   // quiet period after sending
-        private const val TYPE_TO_SEND_MS = 800L  // pause between typing and Send
+        /** Wait this long after the dialog appears before typing the next step (ms). */
+        private const val STEP_DELAY_MS = 3000L
+
+        /** Ignore events for this long after a send, to avoid double‑firing. */
+        private const val DEBOUNCE_MS = 3500L
+
+        /** Pause between typing the digits and clicking Send (ms). */
+        private const val TYPE_TO_SEND_MS = 800L
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -35,7 +46,7 @@ class UssdAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow
         val detected = root != null && isUssdDialog(root)
 
-        // ---------- 1. Appearance / disappearance ----------
+        // -------- 1. Appearance / disappearance --------
         if (detected && !dialogVisible) {
             dialogVisible = true
             UssdLog.append("🔔 DIALOG DETECTED")
@@ -48,35 +59,39 @@ class UssdAccessibilityService : AccessibilityService() {
 
         if (!detected || root == null) return
 
-        // ---------- 2. Menu text ----------
+        // -------- 2. Log the menu text (once per unique menu) --------
         val text = extractText(root).trim()
         if (text.isNotEmpty() && text != lastDialogText) {
             lastDialogText = text
             UssdLog.append("📩 Menu: ${text.replace("\n", " | ")}")
         }
 
-        // ---------- 3. Automation (only if a session is running) ----------
+        // -------- 3. Automation (only when a session is running) --------
         if (!UssdStepStore.active) return
         if (debouncing) return
 
         val input = findInput(root) ?: return
-        val send = findSend(root) ?: return
+        val send  = findSend(root)  ?: return
 
-        val next = UssdStepStore.next() ?: return
+        // Peek at the next step without consuming it, so we can log the wait first.
+        val next = peekNextStep() ?: return
+
         UssdLog.append("⏳ Typing in ${STEP_DELAY_MS / 1000}s: $next")
 
         debouncing = true
-        handler.postDelayed({ typeStep(next, input) }, STEP_DELAY_MS)
-        // Keep `send` reference alive in case the tree changes; we re‑find it below.
-        @Suppress("UNUSED_EXPRESSION") send
+        handler.postDelayed({ typeStep(next) }, STEP_DELAY_MS)
+
+        // Unused here but kept for symmetry; typeStep() re-queries the tree.
+        @Suppress("UNUSED_EXPRESSION") (input to send)
     }
 
     // ---------- Step execution ----------
 
-    private fun typeStep(step: String, _staleInput: AccessibilityNodeInfo) {
+    private fun typeStep(step: String) {
+        // Re‑query the tree in case it changed since the delay started.
         val freshRoot = rootInActiveWindow
         val input = freshRoot?.let { findInput(it) }
-        val send = freshRoot?.let { findSend(it) }
+        val send  = freshRoot?.let { findSend(it) }
 
         if (input == null) {
             UssdLog.append("⚠️ Input field gone before typing $step")
@@ -93,26 +108,41 @@ class UssdAccessibilityService : AccessibilityService() {
         val ok = input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
         UssdLog.append(if (ok) "⌨️ Typed: $step" else "⚠️ Could not type: $step")
 
-        // Pause so you actually see the digit land before Send is pressed.
+        // Pause so the digit is visibly entered before we press Send.
         handler.postDelayed({
             val r2 = rootInActiveWindow
             val s2 = r2?.let { findSend(it) }
             val clicked = s2?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
             UssdLog.append(if (clicked) "✅ Sent: $step" else "⚠️ Send button not found")
 
+            // -------- AutomationEngine hooks --------
+            if (clicked) {
+                // Consume the step we actually sent, keeping the queue in sync.
+                UssdStepStore.next()
+                if (UssdStepStore.isDone()) {
+                    AutomationEngine.scheduleCompletion()
+                } else {
+                    AutomationEngine.heartbeat()
+                }
+            }
+
             handler.postDelayed({ debouncing = false }, DEBOUNCE_MS)
         }, TYPE_TO_SEND_MS)
     }
 
+    /** Look at the next step without consuming it (used for the "Typing in 3s" log). */
+    private fun peekNextStep(): String? {
+        // We haven't consumed it yet, so ask the store for the current head.
+        // UssdStepStore.next() consumes, so we track the cursor differently:
+        // we simply ask for the step that WOULD be sent next.
+        return UssdStepStore.peek()
+    }
+
     // ---------- Dialog detection ----------
 
-    /**
-     * A node tree is treated as a USSD dialog if it contains at least one
-     * editable field AND something that looks like a Send / OK button.
-     */
-    private fun isUssdDialog(root: AccessibilityNodeInfo): Boolean {
-        return findInput(root) != null && findSend(root) != null
-    }
+    /** A node tree is a USSD dialog if it contains an editable field AND a Send/OK button. */
+    private fun isUssdDialog(root: AccessibilityNodeInfo): Boolean =
+        findInput(root) != null && findSend(root) != null
 
     // ---------- Text extraction ----------
 
