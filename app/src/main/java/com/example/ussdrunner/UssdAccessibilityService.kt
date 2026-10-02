@@ -6,69 +6,138 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * Watches for USSD dialogs. As soon as a *new* menu text appears, it types
- * the next queued step, presses Send, and moves on — no delays.
+ * Fires every USSD step the instant a new menu appears.
  *
- * The editable input field is excluded from the "menu signature" so typing a
- * step never counts as a new menu. Only real network prompts advance the flow.
+ *  - ONE tree traversal per event (menu text + input node + send node found together).
+ *  - No debouncing, no artificial delay.
+ *  - Menu signature excludes the editable field, so typing a step
+ *    never counts as a new menu — only real network prompts do.
  */
 class UssdAccessibilityService : AccessibilityService() {
 
+    private companion object {
+        val INPUT_IDS = setOf(
+            "com.android.phone:id/input_field",
+            "com.android.phone:id/inputField",
+            "com.android.phone:id/ussd_input",
+            "com.android.phone:id/ussdInput",
+            "com.android.phone:id/input",
+            "com.android.dialer:id/input",
+            "com.android.server.telecom:id/input"
+        )
+        val SEND_IDS = setOf(
+            "com.android.phone:id/buttonSend",
+            "com.android.phone:id/sendButton",
+            "com.android.phone:id/button_ok",
+            "com.android.phone:id/ok",
+            "com.android.phone:id/positiveButton",
+            "android:id/button1"
+        )
+        val SEND_TEXTS = setOf("SEND", "OK", "SUBMIT", "CONTINUE", "REPLY")
+    }
+
     private var lastMenuSignature: String = ""
-    private var processing = false
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
         if (!UssdStepStore.active) return
 
-        val type = event.eventType
-        if (type != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
-            type != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) return
-
-        if (processing) return
-
-        val root = rootInActiveWindow ?: return
-        if (!isUssdDialog(root)) return
-
-        val signature = extractMenuSignature(root)
-        if (signature.isEmpty() || signature == lastMenuSignature) return
-
-        // ---- New menu detected ----
-        lastMenuSignature = signature
-        UssdLog.append("📩 Menu: ${signature.replace("\n", " | ")}")
-
-        val step = UssdStepStore.peek() ?: return
-        processing = true
-        fireStep(root, step)
-        processing = false
-    }
-
-    private fun fireStep(root: AccessibilityNodeInfo, step: String) {
-        val input = findInput(root)
-        val send  = findSend(root)
-
-        if (input == null) {
-            UssdLog.append("⚠️ Input field missing — step '$step' skipped")
-            return
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+            AccessibilityEvent.TYPE_VIEW_CLICKED,
+            AccessibilityEvent.TYPE_VIEW_FOCUSED -> { /* continue */ }
+            else -> return
         }
 
+        val root = rootInActiveWindow ?: return
+
+        // Single-pass analysis: menu text + input node + send node.
+        val a = analyze(root) ?: return
+        if (a.menu.isEmpty() || a.menu == lastMenuSignature) return
+
+        // New menu — type and send the next step right now.
+        lastMenuSignature = a.menu
+        UssdLog.append("📩 Menu: ${a.menu.replace("\n", " | ")}")
+
+        val step = UssdStepStore.peek() ?: return
+        fireStep(a, step)
+    }
+
+    // ---------- One traversal, everything we need ----------
+
+    private class Analysis(
+        val menu: String,
+        val input: AccessibilityNodeInfo,
+        val send: AccessibilityNodeInfo
+    )
+
+    private fun analyze(root: AccessibilityNodeInfo): Analysis? {
+        val sb = StringBuilder()
+        var input: AccessibilityNodeInfo? = null
+        var send: AccessibilityNodeInfo? = null
+        var inputIsIdMatch = false
+        var sendIsIdMatch = false
+
+        fun visit(node: AccessibilityNodeInfo) {
+            // ---- Menu text (skip the editable field) ----
+            if (!node.isEditable) {
+                val t = node.text?.toString()
+                if (!t.isNullOrBlank()) {
+                    if (sb.isNotEmpty()) sb.append("\n")
+                    sb.append(t)
+                }
+            }
+
+            // ---- Input candidate ----
+            if (node.isEnabled) {
+                val vid = node.viewIdResourceName
+                if (input == null || !inputIsIdMatch) {
+                    if (vid != null && vid in INPUT_IDS) {
+                        input = node; inputIsIdMatch = true
+                    } else if (input == null && node.isEditable) {
+                        input = node
+                    }
+                }
+
+                // ---- Send candidate ----
+                if (send == null || !sendIsIdMatch) {
+                    if (vid != null && vid in SEND_IDS) {
+                        send = node; sendIsIdMatch = true
+                    } else if (send == null || !sendIsIdMatch) {
+                        val txt = node.text?.toString()?.trim()?.uppercase()
+                        if (txt != null && txt in SEND_TEXTS) send = node
+                    }
+                }
+            }
+
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { visit(it) }
+            }
+        }
+
+        visit(root)
+
+        val i = input ?: return null
+        val s = send ?: return null
+        return Analysis(sb.toString().trim(), i, s)
+    }
+
+    // ---------- Fire immediately ----------
+
+    private fun fireStep(a: Analysis, step: String) {
         val args = Bundle().apply {
             putCharSequence(
                 AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
                 step
             )
         }
-        val typed = input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        val typed = a.input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
         UssdLog.append(if (typed) "⌨️ Typed: $step" else "⚠️ Typing failed: $step")
 
-        // Consume the step now that it's in the field.
         UssdStepStore.next()
 
-        if (send == null) {
-            UssdLog.append("⚠️ Send button not found")
-            return
-        }
-        val clicked = send.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        val clicked = a.send.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         UssdLog.append(if (clicked) "✅ Sent: $step" else "⚠️ Send click failed: $step")
 
         if (clicked) {
@@ -79,79 +148,6 @@ class UssdAccessibilityService : AccessibilityService() {
                 AutomationEngine.heartbeat()
             }
         }
-    }
-
-    // ---------- Dialog detection ----------
-
-    private fun isUssdDialog(root: AccessibilityNodeInfo): Boolean =
-        findInput(root) != null && findSend(root) != null
-
-    // ---------- Menu signature (ignores editable field contents) ----------
-
-    private fun extractMenuSignature(node: AccessibilityNodeInfo?): String {
-        node ?: return ""
-        val sb = StringBuilder()
-        collectMenu(node, sb)
-        return sb.toString().trim()
-    }
-
-    private fun collectMenu(node: AccessibilityNodeInfo, sb: StringBuilder) {
-        if (!node.isEditable) {
-            val t = node.text?.toString()
-            if (!t.isNullOrBlank()) {
-                if (sb.isNotEmpty()) sb.append("\n")
-                sb.append(t)
-            }
-        }
-        for (i in 0 until node.childCount) {
-            node.getChild(i)?.let { collectMenu(it, sb) }
-        }
-    }
-
-    // ---------- Node discovery ----------
-
-    private fun findInput(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        val ids = listOf(
-            "com.android.phone:id/input_field",
-            "com.android.phone:id/inputField",
-            "com.android.phone:id/ussd_input",
-            "com.android.phone:id/ussdInput",
-            "com.android.phone:id/input",
-            "com.android.dialer:id/input",
-            "com.android.server.telecom:id/input"
-        )
-        for (id in ids) {
-            root.findAccessibilityNodeInfosByViewId(id)?.firstOrNull()?.let { return it }
-        }
-        return findEditable(root)
-    }
-
-    private fun findEditable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-        node ?: return null
-        if (node.isEditable && node.isEnabled) return node
-        for (i in 0 until node.childCount) {
-            findEditable(node.getChild(i))?.let { return it }
-        }
-        return null
-    }
-
-    private fun findSend(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        val ids = listOf(
-            "com.android.phone:id/buttonSend",
-            "com.android.phone:id/sendButton",
-            "com.android.phone:id/button_ok",
-            "com.android.phone:id/ok",
-            "com.android.phone:id/positiveButton",
-            "android:id/button1"
-        )
-        for (id in ids) {
-            root.findAccessibilityNodeInfosByViewId(id)?.firstOrNull()?.let { return it }
-        }
-        val texts = listOf("Send", "SEND", "OK", "Ok", "Submit", "Continue")
-        for (t in texts) {
-            root.findAccessibilityNodeInfosByText(t)?.firstOrNull()?.let { return it }
-        }
-        return null
     }
 
     override fun onInterrupt() { /* no-op */ }
