@@ -12,13 +12,16 @@ import android.provider.Settings
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
+import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.widget.NestedScrollView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 
@@ -28,6 +31,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etSteps: TextInputEditText
     private lateinit var actSim: AutoCompleteTextView
     private lateinit var btnStart: MaterialButton
+    private lateinit var btnClearLog: MaterialButton
+    private lateinit var tvLog: TextView
+    private lateinit var svLog: NestedScrollView
 
     private var subs: List<SubscriptionInfo> = emptyList()
     private var selectedSubId: Int = SubscriptionManager.INVALID_SUBSCRIPTION_ID
@@ -40,10 +46,25 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        etUssdInit = findViewById(R.id.etUssdInit)
-        etSteps    = findViewById(R.id.etSteps)
-        actSim     = findViewById(R.id.actSim)
-        btnStart   = findViewById(R.id.btnStart)
+        etUssdInit  = findViewById(R.id.etUssdInit)
+        etSteps     = findViewById(R.id.etSteps)
+        actSim      = findViewById(R.id.actSim)
+        btnStart    = findViewById(R.id.btnStart)
+        btnClearLog = findViewById(R.id.btnClearLog)
+        tvLog       = findViewById(R.id.tvLog)
+        svLog       = findViewById(R.id.svLog)
+
+        // ---- LIVE FEED wiring ----
+        UssdLog.lines.observe(this) { lines ->
+            tvLog.text = if (lines.isEmpty()) {
+                getString(R.string.log_empty)
+            } else {
+                lines.joinToString("\n")
+            }
+            // Auto-scroll to the newest line
+            svLog.post { svLog.fullScroll(View.FOCUS_DOWN) }
+        }
+        btnClearLog.setOnClickListener { UssdLog.clear() }
 
         ensurePermissions()
         loadSims()
@@ -93,8 +114,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         actSim.isEnabled = true
-        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, labels)
-        actSim.setAdapter(adapter)
+        actSim.setAdapter(ArrayAdapter(this, android.R.layout.simple_list_item_1, labels))
         actSim.setText(labels.first(), false)
         selectedSubId = subs.first().subscriptionId
 
@@ -117,6 +137,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showAccessibilityDialog() {
+        UssdLog.append("⚠️ Accessibility service not enabled")
         AlertDialog.Builder(this)
             .setTitle("Accessibility Service Required")
             .setMessage(
@@ -149,14 +170,19 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        UssdStepStore.begin(
-            stepsRaw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-        )
+        val steps = stepsRaw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        UssdStepStore.begin(steps)
+
+        UssdLog.append("🚀 Session start · SIM subId=$selectedSubId")
+        UssdLog.append("📤 Sending initializer: $init")
+        if (steps.isNotEmpty()) UssdLog.append("⌨️ Queued steps: ${steps.joinToString(" → ")}")
+
         sendUssd(init, selectedSubId)
     }
 
     private fun sendUssd(code: String, subId: Int) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            UssdLog.append("❌ Android 8.0+ required")
             Toast.makeText(this, "Android 8.0+ required", Toast.LENGTH_SHORT).show()
             return
         }
@@ -171,7 +197,7 @@ class MainActivity : AppCompatActivity() {
                     request: String?,
                     response: CharSequence?
                 ) {
-                    // The AccessibilityService drives the rest.
+                    UssdLog.append("📥 Response: ${response ?: "(empty)"}")
                 }
 
                 override fun onReceiveUssdResponseFailed(
@@ -179,6 +205,7 @@ class MainActivity : AppCompatActivity() {
                     request: String?,
                     failureCode: Int
                 ) {
+                    UssdLog.append("❌ USSD failed (code $failureCode)")
                     runOnUiThread {
                         Toast.makeText(
                             this@MainActivity,
@@ -189,8 +216,10 @@ class MainActivity : AppCompatActivity() {
                 }
             }, Handler(Looper.getMainLooper()))
         } catch (e: SecurityException) {
+            UssdLog.append("❌ Permission denied: ${e.message}")
             Toast.makeText(this, "Permission denied: ${e.message}", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
+            UssdLog.append("❌ Error: ${e.message}")
             Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
