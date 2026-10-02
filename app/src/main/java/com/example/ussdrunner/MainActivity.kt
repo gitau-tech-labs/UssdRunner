@@ -4,10 +4,9 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.provider.Settings
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
@@ -54,14 +53,9 @@ class MainActivity : AppCompatActivity() {
         tvLog       = findViewById(R.id.tvLog)
         svLog       = findViewById(R.id.svLog)
 
-        // ---- LIVE FEED wiring ----
         UssdLog.lines.observe(this) { lines ->
-            tvLog.text = if (lines.isEmpty()) {
-                getString(R.string.log_empty)
-            } else {
-                lines.joinToString("\n")
-            }
-            // Auto-scroll to the newest line
+            tvLog.text = if (lines.isEmpty()) getString(R.string.log_empty)
+                         else lines.joinToString("\n")
             svLog.post { svLog.fullScroll(View.FOCUS_DOWN) }
         }
         btnClearLog.setOnClickListener { UssdLog.clear() }
@@ -72,8 +66,6 @@ class MainActivity : AppCompatActivity() {
         btnStart.setOnClickListener { onStartClicked() }
     }
 
-    // ---------- Permissions ----------
-
     private fun ensurePermissions() {
         val needed = mutableListOf<String>()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
@@ -83,8 +75,6 @@ class MainActivity : AppCompatActivity() {
         if (needed.isNotEmpty()) permsLauncher.launch(needed.toTypedArray())
     }
 
-    // ---------- SIM picker ----------
-
     private fun loadSims() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE)
             != PackageManager.PERMISSION_GRANTED) {
@@ -92,46 +82,34 @@ class MainActivity : AppCompatActivity() {
             actSim.isEnabled = false
             return
         }
-
         val sm = getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as SubscriptionManager
-        subs = try {
-            sm.activeSubscriptionInfoList ?: emptyList()
-        } catch (_: SecurityException) {
-            emptyList()
-        }
+        subs = try { sm.activeSubscriptionInfoList ?: emptyList() }
+               catch (_: SecurityException) { emptyList() }
 
         val labels = subs.map { s ->
             val slot = s.simSlotIndex + 1
             val name = s.displayName?.toString()?.takeIf { it.isNotBlank() } ?: "SIM $slot"
             "$name  ·  SIM $slot"
         }
-
         if (labels.isEmpty()) {
             actSim.setText("No SIM detected", false)
             actSim.isEnabled = false
             selectedSubId = SubscriptionManager.INVALID_SUBSCRIPTION_ID
             return
         }
-
         actSim.isEnabled = true
         actSim.setAdapter(ArrayAdapter(this, android.R.layout.simple_list_item_1, labels))
         actSim.setText(labels.first(), false)
         selectedSubId = subs.first().subscriptionId
-
         actSim.setOnItemClickListener { _, _, position, _ ->
-            if (position in subs.indices) {
-                selectedSubId = subs[position].subscriptionId
-            }
+            if (position in subs.indices) selectedSubId = subs[position].subscriptionId
         }
     }
-
-    // ---------- Accessibility check ----------
 
     private fun isAccessibilityEnabled(): Boolean {
         val expected = "$packageName/${UssdAccessibilityService::class.java.name}"
         val flat = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         ) ?: return false
         return flat.split(':').any { it.equals(expected, ignoreCase = true) }
     }
@@ -140,10 +118,7 @@ class MainActivity : AppCompatActivity() {
         UssdLog.append("⚠️ Accessibility service not enabled")
         AlertDialog.Builder(this)
             .setTitle("Accessibility Service Required")
-            .setMessage(
-                "To auto‑fill USSD replies, enable the USSD Runner accessibility service.\n\n" +
-                "Settings → Accessibility → Installed apps → USSD Runner → ON"
-            )
+            .setMessage("Settings → Accessibility → Installed apps → USSD Runner → ON")
             .setPositiveButton("Open Settings") { _, _ ->
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             }
@@ -151,75 +126,57 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // ---------- Start flow ----------
-
     private fun onStartClicked() {
         val init = etUssdInit.text?.toString()?.trim().orEmpty()
         val stepsRaw = etSteps.text?.toString()?.trim().orEmpty()
 
-        if (init.isEmpty()) {
-            etUssdInit.error = "Enter the USSD initializer"
-            return
-        }
+        if (init.isEmpty()) { etUssdInit.error = "Enter the USSD initializer"; return }
         if (selectedSubId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
-            Toast.makeText(this, "Select a SIM first", Toast.LENGTH_SHORT).show()
-            return
+            Toast.makeText(this, "Select a SIM first", Toast.LENGTH_SHORT).show(); return
         }
-        if (!isAccessibilityEnabled()) {
-            showAccessibilityDialog()
-            return
-        }
+        if (!isAccessibilityEnabled()) { showAccessibilityDialog(); return }
 
         val steps = stepsRaw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
         UssdStepStore.begin(steps)
 
         UssdLog.append("🚀 Session start · SIM subId=$selectedSubId")
-        UssdLog.append("📤 Sending initializer: $init")
+        UssdLog.append("📤 Opening dialer with: $init")
         if (steps.isNotEmpty()) UssdLog.append("⌨️ Queued steps: ${steps.joinToString(" → ")}")
 
-        sendUssd(init, selectedSubId)
+        sendUssdViaDialer(init, selectedSubId)
     }
 
-    private fun sendUssd(code: String, subId: Int) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            UssdLog.append("❌ Android 8.0+ required")
-            Toast.makeText(this, "Android 8.0+ required", Toast.LENGTH_SHORT).show()
-            return
+    /**
+     * Hands the USSD code to the dialer via ACTION_CALL. This is the ONLY reliable
+     * way to make the standard USSD dialog pop up on screen — the TelephonyManager
+     * silent API suppresses it on most phones.
+     *
+     * The '#' character MUST be URL‑encoded as %23, otherwise everything after it
+     * is treated as a URI fragment and never reaches the network.
+     */
+    private fun sendUssdViaDialer(code: String, subId: Int) {
+        val encoded = code.replace("#", "%23").replace("*", "%2A")
+        val uri = Uri.parse("tel:$encoded")
+
+        val intent = Intent(Intent.ACTION_CALL, uri).apply {
+            // Try every known OEM extra for "use this SIM".
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                putExtra("com.android.phone.extra.slot", subId)
+                putExtra("simSlot", subId)
+                putExtra("subscription", subId)
+                putExtra("android.telecom.extra.PHONE_ACCOUNT_ID", subId)
+            }
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
-        val tm = (getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager)
-            .createForSubscriptionId(subId)
-
         try {
-            tm.sendUssdRequest(code, object : TelephonyManager.UssdResponseCallback() {
-                override fun onReceiveUssdResponse(
-                    telephonyManager: TelephonyManager?,
-                    request: String?,
-                    response: CharSequence?
-                ) {
-                    UssdLog.append("📥 Response: ${response ?: "(empty)"}")
-                }
-
-                override fun onReceiveUssdResponseFailed(
-                    telephonyManager: TelephonyManager?,
-                    request: String?,
-                    failureCode: Int
-                ) {
-                    UssdLog.append("❌ USSD failed (code $failureCode)")
-                    runOnUiThread {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "USSD failed (code $failureCode)",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
-            }, Handler(Looper.getMainLooper()))
+            UssdLog.append("📞 Launching dialer…")
+            startActivity(intent)
         } catch (e: SecurityException) {
-            UssdLog.append("❌ Permission denied: ${e.message}")
-            Toast.makeText(this, "Permission denied: ${e.message}", Toast.LENGTH_LONG).show()
+            UssdLog.append("❌ CALL_PHONE permission missing")
+            Toast.makeText(this, "Grant phone permission", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
-            UssdLog.append("❌ Error: ${e.message}")
+            UssdLog.append("❌ Dialer error: ${e.message}")
             Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
