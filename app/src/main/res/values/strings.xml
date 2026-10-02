@@ -24,6 +24,7 @@
 
     <string name="nav_runner">Runner</string>
     <string name="nav_inbox">Inbox</string>
+    <string name="nav_failed">Failed</string>
     <string name="nav_products">Products</string>
     <string name="nav_settings">Settings</string>
 
@@ -32,6 +33,12 @@
     <string name="inbox_count">Transactions</string>
     <string name="inbox_empty">No M‑Pesa transactions captured yet.\nSend yourself a test SMS or wait for the next payment.</string>
     <string name="inbox_clear">Clear inbox</string>
+
+    <string name="failed_title">FAILED FLOWS</string>
+    <string name="failed_empty">No failed flows. Every transaction so far has completed.</string>
+    <string name="failed_clear_resolved">Clear resolved</string>
+    <string name="failed_retry">Retry</string>
+    <string name="failed_mark_resolved">Mark resolved</string>
 
     <string name="products_title">PRODUCTS</string>
     <string name="products_add">Add product</string>
