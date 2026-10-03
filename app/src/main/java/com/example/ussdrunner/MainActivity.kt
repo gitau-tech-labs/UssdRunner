@@ -13,35 +13,32 @@ class MainActivity : AppCompatActivity() {
 
     private val permsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { /* fragments re-check on resume */ }
+    ) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Keep-Alive init temporarily disabled for debugging.
         MpesaStore.init(this)
         ProductStore.init(this)
         FailedStore.init(this)
         AutomationEngine.attach(this)
 
         ensurePermissions()
-
         if (savedInstanceState == null) swap(RunnerFragment())
 
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNav)
         bottomNav.setOnItemSelectedListener { item ->
             val frag: Fragment = when (item.itemId) {
-                R.id.nav_runner   -> RunnerFragment()
-                R.id.nav_inbox    -> InboxFragment()
-                R.id.nav_failed   -> FailedFragment()
-                R.id.nav_products -> ProductsFragment()
-                R.id.nav_settings -> SettingsFragment()
-                // R.id.nav_keepalive -> KeepAliveFragment()   // disabled
+                R.id.nav_runner    -> RunnerFragment()
+                R.id.nav_inbox     -> InboxFragment()
+                R.id.nav_failed    -> FailedFragment()
+                R.id.nav_products  -> ProductsFragment()
+                R.id.nav_keepalive -> KeepAliveFragment()
+                R.id.nav_settings  -> SettingsFragment()
                 else -> return@setOnItemSelectedListener false
             }
-            swap(frag)
-            true
+            swap(frag); true
         }
     }
 
