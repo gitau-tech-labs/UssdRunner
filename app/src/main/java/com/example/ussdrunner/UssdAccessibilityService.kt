@@ -12,8 +12,8 @@ import android.view.accessibility.AccessibilityNodeInfo
  *  - No delays, no debouncing, no throttling (notificationTimeout=0 in config)
  *  - Menu signature excludes the editable field, so typing a step never
  *    counts as a new menu — only real network prompts advance the flow
- *  - Auto-resets the signature the moment a new session starts, so a session
- *    that begins right after the last one still fires step 1 immediately
+ *  - Auto-resets the signature the moment a new session starts
+ *  - Captures responses for Keep-Alive cycles without feeding steps
  */
 class UssdAccessibilityService : AccessibilityService() {
 
@@ -44,7 +44,32 @@ class UssdAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
 
-        // -------- Auto-reset when a new session starts --------
+        // ============================================================
+        // KEEP-ALIVE MODE — capture the response, do NOT feed steps.
+        // Keep-Alive has priority over nothing (the AutomationEngine
+        // checks isBusy() before running), so no conflict here.
+        // ============================================================
+        if (KeepAliveSession.active) {
+            when (event.eventType) {
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> { /* ok */ }
+                else -> return
+            }
+            val root = rootInActiveWindow ?: return
+            val a = analyze(root) ?: return
+            if (a.menu.isNotEmpty() && a.menu != KeepAliveSession.lastMenu) {
+                KeepAliveSession.lastMenu = a.menu
+                KeepAliveSession.response = a.menu
+                UssdLog.append("🔄 Keep-alive response: ${a.menu.replace("\n", " | ")}")
+            }
+            return
+        }
+
+        // ============================================================
+        // NORMAL MODE — feed USSD steps for M-Pesa automation
+        // ============================================================
+
+        // ---- Auto-reset when a new session starts ----
         val nowActive = UssdStepStore.active
         if (nowActive && !wasActive) {
             lastMenuSignature = ""
@@ -54,7 +79,6 @@ class UssdAccessibilityService : AccessibilityService() {
 
         if (!nowActive) return
 
-        // -------- Accept only meaningful event types --------
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
@@ -69,7 +93,7 @@ class UssdAccessibilityService : AccessibilityService() {
         val a = analyze(root) ?: return
         if (a.menu.isEmpty() || a.menu == lastMenuSignature) return
 
-        // -------- New menu — fire immediately --------
+        // ---- New menu — fire immediately ----
         lastMenuSignature = a.menu
         UssdLog.append("📩 Menu: ${a.menu.replace("\n", " | ")}")
 
