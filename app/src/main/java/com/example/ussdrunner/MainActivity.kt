@@ -19,11 +19,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // -------- Init all singletons once, at app start --------
+        // Keep-Alive init temporarily disabled for debugging.
         MpesaStore.init(this)
         ProductStore.init(this)
         FailedStore.init(this)
-        KeepAliveStore.init(this)
         AutomationEngine.attach(this)
 
         ensurePermissions()
@@ -33,12 +32,12 @@ class MainActivity : AppCompatActivity() {
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNav)
         bottomNav.setOnItemSelectedListener { item ->
             val frag: Fragment = when (item.itemId) {
-                R.id.nav_runner    -> RunnerFragment()
-                R.id.nav_inbox     -> InboxFragment()
-                R.id.nav_failed    -> FailedFragment()
-                R.id.nav_products  -> ProductsFragment()
-                R.id.nav_keepalive -> KeepAliveFragment()
-                R.id.nav_settings  -> SettingsFragment()
+                R.id.nav_runner   -> RunnerFragment()
+                R.id.nav_inbox    -> InboxFragment()
+                R.id.nav_failed   -> FailedFragment()
+                R.id.nav_products -> ProductsFragment()
+                R.id.nav_settings -> SettingsFragment()
+                // R.id.nav_keepalive -> KeepAliveFragment()   // disabled
                 else -> return@setOnItemSelectedListener false
             }
             swap(frag)
