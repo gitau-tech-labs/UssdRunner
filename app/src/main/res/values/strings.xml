@@ -26,6 +26,7 @@
     <string name="nav_inbox">Inbox</string>
     <string name="nav_failed">Failed</string>
     <string name="nav_products">Products</string>
+    <string name="nav_keepalive">Keep‑Alive</string>
     <string name="nav_settings">Settings</string>
 
     <string name="inbox_title">M‑PESA INBOX</string>
@@ -69,4 +70,23 @@
     <string name="settings_failed_msg">Failed SMS</string>
     <string name="settings_msg_help">Placeholders: {customer_name} {customer_phone} {customer_phone_local} {amount} {amount_full} {code}</string>
     <string name="settings_msg_reset">Reset to default</string>
+
+    <!-- Keep-Alive -->
+    <string name="keepalive_status_sub">No keep-alive USSD will be sent until you turn it on.</string>
+    <string name="keepalive_start_title">Start Network Keep‑Alive</string>
+    <string name="keepalive_start_hint">Start only when you understand the token cost.</string>
+    <string name="keepalive_warning">This service is token‑heavy. Best practice is to run it when Unlimited is active. If you start it on runs, those runs can be consumed quickly.</string>
+    <string name="keepalive_config_title">CONFIGURATION</string>
+    <string name="keepalive_code">USSD Code</string>
+    <string name="keepalive_interval">Interval</string>
+    <string name="keepalive_unit">Unit</string>
+    <string name="keepalive_min_interval">Minimum interval is 15 minutes.</string>
+    <string name="keepalive_alt_sim">Alternate SIM</string>
+    <string name="keepalive_alt_sim_hint">Switch between SIM1 and SIM2 on each scheduled tick</string>
+    <string name="keepalive_use_sim">Use SIM</string>
+    <string name="keepalive_permissions">PERMISSIONS</string>
+    <string name="keepalive_battery">Battery exemption</string>
+    <string name="keepalive_exact_alarm">Exact alarm</string>
+    <string name="keepalive_log_title">LAST KEEP‑ALIVE ACTIVITY</string>
+    <string name="keepalive_log_empty">No keep-alive cycle has been recorded yet. Once one completes or ends without a usable response, it will appear here.</string>
 </resources>
