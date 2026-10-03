@@ -20,9 +20,15 @@ object AutomationEngine {
 
     fun attach(context: Context) { appCtx = context.applicationContext }
 
-    // ---------- Trigger (auto or manual) ----------
+    /** True while an M-Pesa flow is running — used by Keep-Alive to defer. */
+    fun isBusy(): Boolean = activeTransaction != null
+
+    // ---------- Trigger (auto or manual or retry) ----------
 
     fun trigger(context: Context, product: Product, tx: MpesaTransaction) {
+        // If a Keep-Alive tick was running, cancel it — real money takes priority.
+        KeepAliveSession.cancel()
+
         val resolved = PlaceholderResolver.resolveAll(product.steps, tx)
         UssdLog.append("🎬 Matched: ${product.name} (KSH %.2f)".format(product.price))
         UssdLog.append("📋 Steps: ${resolved.joinToString(" → ")}")
