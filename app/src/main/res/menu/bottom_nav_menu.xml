@@ -1,8 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/nav_runner"   android:icon="@drawable/ic_ussd"     android:title="@string/nav_runner" />
-    <item android:id="@+id/nav_inbox"    android:icon="@drawable/ic_inbox"    android:title="@string/nav_inbox" />
-    <item android:id="@+id/nav_failed"   android:icon="@drawable/ic_failed"   android:title="@string/nav_failed" />
-    <item android:id="@+id/nav_products" android:icon="@drawable/ic_products" android:title="@string/nav_products" />
-    <item android:id="@+id/nav_settings" android:icon="@drawable/ic_settings" android:title="@string/nav_settings" />
+    <item
+        android:id="@+id/nav_runner"
+        android:icon="@drawable/ic_ussd"
+        android:title="@string/nav_runner" />
+    <item
+        android:id="@+id/nav_inbox"
+        android:icon="@drawable/ic_inbox"
+        android:title="@string/nav_inbox" />
+    <item
+        android:id="@+id/nav_failed"
+        android:icon="@drawable/ic_failed"
+        android:title="@string/nav_failed" />
+    <item
+        android:id="@+id/nav_products"
+        android:icon="@drawable/ic_products"
+        android:title="@string/nav_products" />
+    <item
+        android:id="@+id/nav_keepalive"
+        android:icon="@drawable/ic_ussd"
+        android:title="@string/nav_keepalive" />
+    <item
+        android:id="@+id/nav_settings"
+        android:icon="@drawable/ic_settings"
+        android:title="@string/nav_settings" />
 </menu>
